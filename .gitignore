@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Generated build output and test coverage
+dist/
+coverage/
+
+# Local logs and environment files
+*.log
+.env
+.env.*
+!.env.example
+
+# Operating-system files
+.DS_Store
+Thumbs.db

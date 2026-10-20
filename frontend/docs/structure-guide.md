@@ -1,0 +1,108 @@
+# Folder and file guide
+
+This is a small React + Vite + Tailwind CSS v4 frontend. The structure separates content, reusable UI pieces, page sections, and design tokens so changes are easier to understand.
+
+## Project tree
+
+```text
+frontend/
+├── index.html
+├── package.json
+├── package-lock.json
+├── vite.config.js
+├── public/
+│   ├── favicon.svg
+│   ├── resume.pdf
+│   └── robots.txt
+├── src/
+│   ├── components/
+│   │   ├── Arrow.jsx
+│   │   ├── Brand.jsx
+│   │   ├── Button.jsx
+│   │   ├── Container.jsx
+│   │   ├── DownloadIcon.jsx
+│   │   ├── Navbar.jsx
+│   │   ├── ProjectArtwork.jsx
+│   │   ├── ProjectEntry.jsx
+│   │   └── TechnologyTags.jsx
+│   ├── data/
+│   │   └── portfolio.js
+│   ├── sections/
+│   │   ├── About.jsx
+│   │   ├── Contact.jsx
+│   │   ├── Footer.jsx
+│   │   ├── Hero.jsx
+│   │   └── Work.jsx
+│   ├── App.jsx
+│   ├── main.jsx
+│   └── index.css
+└── docs/
+    ├── code-review.md
+    ├── design-notes.md
+    └── structure-guide.md
+```
+
+## Files at the `frontend/` root
+
+- **`package.json`** — lists the React/Vite/Tailwind dependencies and commands. Run npm commands from this folder.
+- **`vite.config.js`** — registers Vite's React plugin and the `@tailwindcss/vite` plugin.
+- **`index.html`** — the browser document, page metadata, favicon link, and `#root` mount point for React.
+- **`public/`** — static files served as-is: `resume.pdf`, `favicon.svg`, and `robots.txt`.
+
+## `src/`: application source
+
+- **`main.jsx`** — the entry point. It checks for the `#root` element, renders the app with React `StrictMode`, and imports the global stylesheet.
+- **`App.jsx`** — composes the page sections and holds the skip link. `<main>` carries `tabindex="-1"` so the skip link moves focus into the content instead of only scrolling. Keep this file focused on page order rather than putting every detail here.
+- **`index.css`** — the whole global stylesheet. It contains only the Tailwind import, the `@theme` design tokens, a short `@layer base` block, the `transition-ui` utility, and the reduced-motion guard.
+
+### `src/components/`: reusable building blocks
+
+- **`Container.jsx`** — the shared max-width and responsive page padding used by every section.
+- **`Button.jsx`** — the link styled as a button, with `solid`/`outline` variants and `md`/`sm` sizes.
+- **`Arrow.jsx`** — the one consistent arrow shape (inline SVG, not a text glyph), used across buttons and links. It inherits the surrounding text colour and nudges on its `group` parent's hover.
+- **`DownloadIcon.jsx`** — the inline SVG download icon used by the resume button, matching `Arrow`'s 2px stroke.
+- **`Brand.jsx`** — the portfolio wordmark, used only in the sticky header (the footer deliberately does not repeat it). The "PC" monogram is drawn with generated content so the mark stays decorative and never clashes with the link's accessible name.
+- **`Navbar.jsx`** — desktop/mobile navigation with the resume link, the shared hover/focus underline, `aria-current` active state driven by an `IntersectionObserver` reading band, Escape-to-close, resize handling, and menu state. It also restores deep links (`/#about`): the browser looks for the fragment before React has rendered the section, so after mount the matching target is scrolled into view with `scroll-padding-top` still applied.
+- **`ProjectArtwork.jsx`** — the purpose-built illustration for a project, selected by the `artwork` field in the data: a report → prioritize → resolve complaint workflow (HostelCare), the eight water-quality measurements and the three status bands the API returns (AquaPredict), and the Excel → summary report → email flow (RPA Expense Tracker). Each panel is one `role="img"` with a descriptive label, prints what it is in its topline so it can never read as a capture, and is built from CSS boxes and inline SVG — no image file and no new dependency. Every palette clears 4.5:1 on its own tint. Below 480px each drawing switches from its wide arrangement to a stacked one.
+- **`ProjectEntry.jsx`** — one project in the gallery: the illustration and the writing, in one of two arrangements. `featured` places the panel beside the copy in a wide row that stretches both halves to one height from 1024px up; a supporting entry stacks the panel above the copy. Both arrangements render the same copy block — numbered index and category, title, one-line summary, detail, technology list, and a single repository action — so the two cannot drift apart. Entries are separated by a hairline rule, not boxed into a card.
+- **`TechnologyTags.jsx`** — reusable list for a project's tech stack.
+
+### `src/sections/`: large page regions
+
+- **`Hero.jsx`** — the typewriter greeting, the main statement, and links into the portfolio.
+- **`Work.jsx`** — the two-tier gallery: it picks the project flagged `featured` and renders it as the wide leading row, then renders the remaining projects one type step down in a two-column tier from 1024px up (a single column below). Rows are divided by hairline rules rather than boxed into cards, and the section closes with a line to the GitHub profile.
+- **`About.jsx`** — a brief bio, education line, and skill groups.
+- **`Contact.jsx`** — a single clear email action plus the location line; there is no pretend contact form.
+- **`Footer.jsx`** — copyright line, profile links, and a link back to the top of the page.
+
+### `src/data/`: content, not layout
+
+- **`portfolio.js`** — profile details, verified-from-resume project repository URLs, project summaries/descriptions, technology tags, the `artwork` key that names each project's illustration, and skill groups. A project has no image field: it names a drawing, and the drawing itself lives in `ProjectArtwork.jsx`. Change this file to update content without editing the JSX structure.
+
+## Styling rules
+
+1. Style with Tailwind utility classes in the component's `className`.
+2. Add a new color, font size, container width, or breakpoint to the `@theme` block in `src/index.css` rather than hard-coding it in several places.
+3. Only reach for `src/index.css` when something cannot be expressed as a utility (currently: tokens, base element styles, the `transition-ui` utility, and the reduced-motion guard).
+4. Do not create one CSS file per component, and do not reintroduce a large hand-written stylesheet.
+
+## A useful mental model
+
+- **Data says what to show.** Example: project name, summary, description, technologies, and link in `data/portfolio.js`.
+- **Components say how a reusable piece works.** Example: a `ProjectEntry` renders any project object.
+- **Sections say where page content belongs.** Example: `Work.jsx` arranges the featured and supporting projects.
+- **Tokens say what the design values are.** Example: `--color-accent` in `index.css` powers every `text-accent`, `bg-accent`, and `border-accent`.
+
+## Safe workflow for a content change
+
+1. Update `src/data/portfolio.js`.
+2. Save and inspect the browser.
+3. Check the browser console.
+4. Run `npm run build` before sharing/deploying.
+
+## Safe workflow for a component or style change
+
+1. Find the relevant component under `src/components/` or section under `src/sections/`.
+2. Change its Tailwind classes in place. Prefer adjusting the shared token when the same value repeats.
+3. Check desktop and mobile widths.
+4. Run `npm run build`.

@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/* Design tokens. Tailwind v4 turns these into utilities such as
+   bg-paper, text-muted, border-line, max-w-content, text-display. */
+@theme {
+  --color-paper: #f7f6f2;
+  --color-surface: #fffefa;
+  --color-sunken: #eeede7;
+  --color-ink: #1c1d1b;
+  --color-muted: #66675f;
+  /* Dark enough to clear 4.5:1 on both the paper and sunken backgrounds. */
+  --color-subtle: #6a6b64;
+  --color-line: #dedfd7;
+  --color-line-strong: #cfd0c7;
+  --color-accent: #6c55e8;
+  --color-accent-soft: #ece8ff;
+  --color-night: #222126;
+  --color-night-soft: #c5c3ca;
+
+  --container-content: 1200px;
+  --breakpoint-xs: 30rem;
+
+  --text-kicker: 0.68rem;
+  --text-display: clamp(3.25rem, 8.4vw, 7rem);
+  --text-headline: clamp(2.6rem, 5.4vw, 4.75rem);
+  --text-title: clamp(1.65rem, 2.7vw, 2.5rem);
+
+  --animate-blink: blink 1s step-end infinite;
+
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+}
+
+/* Hover/focus colour transition for interactive elements.
+
+   Tailwind's built-in colour transition utility also lists `outline-color`, so the keyboard
+   focus ring fades in from the element's own colour instead of appearing at
+   full contrast straight away. This utility animates the same properties
+   without `outline-color`. */
+@utility transition-ui {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: var(--default-transition-timing-function);
+  transition-duration: var(--default-transition-duration);
+}
+
+/* Base layer: genuinely global concerns only. */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* Keep anchored sections clear of the sticky header. */
+    scroll-padding-top: 6rem;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+    font-synthesis: none;
+  }
+
+  ::selection {
+    color: #fff;
+    background: var(--color-accent);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+
+  img,
+  svg {
+    max-width: 100%;
+  }
+
+  /* Global reduced-motion guard: the only animation on the site is the
+     typewriter cursor (hidden here and via JS); this stops hover transitions. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
