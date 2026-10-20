@@ -13,6 +13,8 @@
     "preview:frontend": "npm --prefix frontend run preview",
     "dev:server": "npm --prefix server run dev",
     "start:server": "npm --prefix server run start",
+    "seed:content": "node server/scripts/seed-content.js",
+    "admin:create": "node server/scripts/create-admin.js",
     "install:all": "npm --prefix frontend ci && npm --prefix server ci"
   }
 }

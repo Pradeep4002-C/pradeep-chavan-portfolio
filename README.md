@@ -8,7 +8,8 @@ A project-first portfolio: a **React + Vite + Tailwind CSS v4** frontend and an 
 | --- | --- |
 | Public frontend | Complete and verified — Home, Work, About, Contact, Footer, resume download |
 | Backend foundation | Complete (M1) — configuration validation, MongoDB connection, security headers, health endpoint, error handling, graceful shutdown |
-| Authentication, admin dashboard, models, project CRUD, contact persistence, public API data fetching | **Not implemented yet** — planned for later milestones |
+| Database models and seeding | Complete (M2) — eight Mongoose models, indexes, idempotent content seed, secure administrator creation |
+| Authentication, admin dashboard, project CRUD, contact persistence, public API data fetching | **Not implemented yet** — planned for later milestones |
 
 The frontend still renders its own curated content and does not call the API yet. Nothing in the public site was redesigned during the backend work.
 
@@ -30,6 +31,9 @@ Portfolio_new/
 │   └── src/                     # components, sections, data, styles
 └── server/                      # Express API
     ├── package.json
+    ├── scripts/
+    │   ├── seed-content.js      # Idempotent portfolio content seed
+    │   └── create-admin.js      # Secure first-administrator initialization
     └── src/
         ├── index.js             # Startup, shutdown, process-level error handling
         ├── app.js               # Express application (helmet, JSON parsing, routes)
@@ -39,10 +43,12 @@ Portfolio_new/
         ├── middleware/
         │   ├── notFound.js      # JSON 404 for unknown routes
         │   └── errorHandler.js  # Central error handler
+        ├── models/              # Eight Mongoose models + ensureModelIndexes()
         ├── routes/
         │   └── health.js        # GET /api/health
         └── lib/
-            └── logger.js        # Structured JSON-line logger
+            ├── logger.js        # Structured JSON-line logger
+            └── validators.js    # Shared email and http(s) URL checks
 ```
 
 The frontend has not moved: its entry points and design are unchanged. Read `frontend/docs/structure-guide.md` for the role of each frontend file.
@@ -118,6 +124,8 @@ Run the two applications in separate terminals.
 | `npm run build:frontend` | Production build into `frontend/dist/` |
 | `npm run preview:frontend` | Preview the production build |
 | `npm run start:server` | Start the API without watch mode |
+| `npm run seed:content` | Create missing portfolio records (safe to repeat) |
+| `npm run admin:create` | Create the first administrator interactively |
 
 The same commands work directly inside `frontend/` (`npm run dev`, `npm run build`, `npm run preview`) and `server/` (`npm run dev`, `npm start`).
 
@@ -156,6 +164,74 @@ If the connection drops after startup, the same endpoint returns `503 Service Un
 - Helmet sets security headers on every response; `X-Powered-By` is disabled.
 - There is **no SPA fallback and no CORS configuration yet** — both belong to the integration milestone.
 
+## Database models
+
+The API uses the database named in `MONGODB_URI` (`pradeep_portfolio` in the example). Mongoose pluralises collection names.
+
+| Model | Collection | Purpose | Notable fields and indexes |
+| --- | --- | --- | --- |
+| `Admin` | `admins` | Dashboard account | `email` unique + normalised; `passwordHash` excluded from queries and JSON; login counters are server-only |
+| `Profile` | `profiles` | Single portfolio profile | Immutable unique `key` prevents a second document; name/email required; social links validated as http(s) |
+| `Project` | `projects` | Showcase entries | `slug` unique; `artwork` limited to `hostelcare`, `aquapredict`, `expense`; index on `{ published, order }` |
+| `SkillGroup` | `skillgroups` | Skills by category | `label` unique; index on `{ order }` |
+| `Education` | `educations` | Education history | Optional years validated as a range; index on `{ order }` |
+| `Certification` | `certifications` | Certificates | Required title, issuer, year; optional http(s) URL; index on `{ order }` |
+| `Achievement` | `achievements` | Honours and awards | Required title and year; index on `{ order }` |
+| `ContactMessage` | `contactmessages` | Private contact inbox | `read` defaults to false; indexes on `{ createdAt: -1 }` and `{ read, createdAt: -1 }`; never exposed publicly |
+
+Shared rules: `timestamps` on every model, length limits on strings, email normalisation, http(s)-only URLs, and a small set of collection-specific indexes. `ensureModelIndexes()` calls each model's `init()`, which **creates missing indexes only** — it never drops a collection, index, or document, and it does not run `syncIndexes()`.
+
+## Seeding portfolio content
+
+```powershell
+npm run seed:content
+```
+
+The script imports `frontend/src/data/portfolio.js` directly — there is no second copy of the content — and creates:
+
+| Record | Expected count |
+| --- | --- |
+| Profile | 1 |
+| Projects | 3 |
+| Skill groups | 4 |
+| Education | 0 |
+| Certifications | 0 |
+| Achievements | 0 |
+| Contact messages | 0 |
+| Administrators | unchanged |
+
+**Why it is safe to repeat.** Each record is keyed by a stable identifier (`profile` key, project `slug`, skill-group `label`). The script checks for that identifier and only creates the document when it is missing. Existing documents are not written to at all, so edits made later in the admin dashboard are preserved, including their timestamps. Documents that are absent from the source file are never deleted, and administrators are never touched. If two seeds race, the unique index keeps one record and the script treats the duplicate-key error as “already exists”.
+
+**What is deliberately not seeded.** Education, certifications, and achievements have no confirmed wording in the repository yet, so seeding them would mean inventing content. The profile `headline` and `bio` are also left empty because that copy currently lives in the frontend components rather than the data file.
+
+## Creating the administrator
+
+There is no registration endpoint and no automatic account creation. Create the first administrator explicitly:
+
+```powershell
+npm run admin:create -- --email owner@example.com --name "Owner Name"
+```
+
+The script prompts for the password twice with hidden input. It requires **at least 12 characters**, hashes with **Argon2id**, stores only the hash, and refuses to create or overwrite an account whose email already exists. It never prints the password or the hash, and the password cannot be supplied as a command-line argument. For scripted local use, two password lines may be piped on stdin (see `npm run admin:create -- --help`), which is useful for testing against a disposable database.
+
+`.env` stays untracked; `.env.example` contains placeholders only.
+
+## Inspecting the database
+
+With a local MongoDB:
+
+```powershell
+mongosh "mongodb://127.0.0.1:27017/pradeep_portfolio"
+db.getCollectionNames()
+db.projects.find().sort({ order: 1 }).pretty()
+db.profiles.findOne()
+db.skillgroups.find().sort({ order: 1 }).pretty()
+db.admins.countDocuments()
+db.contactmessages.find().sort({ createdAt: -1 })
+```
+
+With Atlas, open the cluster in the Atlas UI or connect with your own connection string. Never paste a credential-bearing URI into documentation, screenshots, or logs.
+
 ## Troubleshooting
 
 | Symptom | Likely cause and fix |
@@ -167,6 +243,9 @@ If the connection drops after startup, the same endpoint returns `503 Service Un
 | `EADDRINUSE` on port 4000 | Another process is listening on 4000. Stop it or set a different `PORT`. |
 | The API exits with code `1` and never listens | Working as designed: configuration or the database connection failed. Read the JSON log line for the cause. |
 | Frontend looks out of date | Rebuild with `npm run build:frontend` and reload; `dist/` is generated and ignored by Git. |
+| `E11000 duplicate key` while seeding | A document already uses that unique identifier (profile key, project slug, or skill-group label). The seed skips it and leaves it untouched; inspect it before changing anything. |
+| `An administrator with that email already exists` | Working as designed. The script never replaces an account or its password; use a different email or manage the existing account deliberately. |
+| Seeded content looks stale after editing `portfolio.js` | Seeding only creates missing records. Update already-seeded records through the admin workflow once it exists, or edit them in MongoDB deliberately. |
 
 ## Frontend
 
@@ -215,7 +294,7 @@ These are design principles, not copied templates.
 
 ### Where to edit
 
-- Change name, email, profile links, project descriptions, repository destinations, and skill groups in `frontend/src/data/portfolio.js`.
+- Change name, email, profile links, project descriptions, repository destinations, and skill groups in `frontend/src/data/portfolio.js`. After adding a new project or skill group, run `npm run seed:content` to create the missing records; existing records are not overwritten.
 - Change the page order in `frontend/src/App.jsx`.
 - Change colors, fonts, spacing scale, or breakpoints in the `@theme` block in `frontend/src/index.css`.
 - Change a specific reusable UI piece in `frontend/src/components/` (`Container`, `Button`, `Brand`, `Arrow`, `DownloadIcon`, `Navbar`, `ProjectArtwork`, `ProjectEntry`, `TechnologyTags`).
@@ -244,7 +323,7 @@ Project repository destinations are sourced from the hyperlinks in the supplied 
 - The resume button is labelled "Download resume" and downloads the PDF (`download` attribute on a same-origin link), so the label matches the action.
 - The header brand is a "PC" monogram beside the name; the letters are generated content so they stay out of the link's accessible name.
 - Nothing in the showcase stands in for an application screen: there is no screenshot, no placeholder box, no stock imagery, no imitation window, and no fabricated metric. The drawings are labelled diagrams, and each entry ends at one real repository link.
-- The frontend is intentionally independent of the API in this milestone. Authentication, the admin dashboard, models, seeding, and contact persistence arrive later; the public site keeps working while they are built.
+- The frontend is intentionally independent of the API in this milestone. Authentication, the admin dashboard, CRUD endpoints, contact persistence, and public data fetching arrive later; the public site keeps working while they are built.
 
 ## Accessibility and quality checks
 
