@@ -6,7 +6,7 @@ const SAFE_ERROR_CODES = new Set(['INVALID_JSON', 'PAYLOAD_TOO_LARGE', 'REQUEST_
  * Central error handler. Express 5 recognises this by its four parameters.
  *
  * - 4xx errors keep a short, safe message.
- * - 5xx errors never expose the underlying message or stack in production.
+ * - 5xx errors never expose the underlying message or stack to a client.
  * - Request bodies are never logged.
  */
 export function errorHandler(err, req, res, next) {
@@ -56,12 +56,8 @@ export function errorHandler(err, req, res, next) {
     logger.warn('Request rejected', context);
   }
 
-  const body = { error: { code, message } };
-
-  // Stack traces are development-only; production responses stay clean.
-  if (req.app.get('env') !== 'production' && status >= 500 && err.stack) {
-    body.error.stack = err.stack;
-  }
-
-  res.status(status).json(body);
+  // Stack traces are logged above but never returned to a client: this API
+  // serves public portfolio data and must not expose internals in any
+  // environment.
+  res.status(status).json({ error: { code, message } });
 }

@@ -1,6 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import { healthRouter } from './routes/health.js';
+import { portfolioRouter } from './routes/portfolio.js';
 import { notFound } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -19,6 +20,7 @@ export function createApp() {
   app.use(express.json({ limit: '32kb' }));
 
   app.use('/api/health', healthRouter);
+  app.use('/api/portfolio', portfolioRouter);
 
   // No SPA fallback yet: unknown paths get a JSON 404.
   app.use(notFound);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { profile } from '../data/portfolio.js';
+import { usePortfolio } from '../PortfolioContext.jsx';
 import Brand from './Brand.jsx';
 import Button from './Button.jsx';
 import Container from './Container.jsx';
@@ -36,6 +36,7 @@ function linkClass(isActive) {
 }
 
 export default function Navbar() {
+  const { profile } = usePortfolio();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeId, setActiveId] = useState(() =>
     typeof window === 'undefined' ? '' : window.location.hash.slice(1),

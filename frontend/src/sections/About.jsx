@@ -1,9 +1,11 @@
-import { profile, skillGroups } from '../data/portfolio.js';
+import { usePortfolio } from '../PortfolioContext.jsx';
 import Arrow from '../components/Arrow.jsx';
 import Container from '../components/Container.jsx';
 import { tagClass } from '../components/TechnologyTags.jsx';
 
 export default function About() {
+  const { profile, skillGroups } = usePortfolio();
+
   return (
     <section
       id="about"

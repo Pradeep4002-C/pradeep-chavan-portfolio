@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { profile } from '../data/portfolio.js';
+import { usePortfolio } from '../PortfolioContext.jsx';
 import Arrow from '../components/Arrow.jsx';
 import Button from '../components/Button.jsx';
 import Container from '../components/Container.jsx';
@@ -16,6 +16,7 @@ function prefersReducedMotion() {
 }
 
 export default function Hero() {
+  const { profile } = usePortfolio();
   const [typedGreeting, setTypedGreeting] = useState(() =>
     prefersReducedMotion() ? greeting : '',
   );

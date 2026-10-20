@@ -1,8 +1,10 @@
-import { profile } from '../data/portfolio.js';
+import { usePortfolio } from '../PortfolioContext.jsx';
 import Arrow from '../components/Arrow.jsx';
 import Container from '../components/Container.jsx';
 
 export default function Contact() {
+  const { profile } = usePortfolio();
+
   return (
     <section
       id="contact"

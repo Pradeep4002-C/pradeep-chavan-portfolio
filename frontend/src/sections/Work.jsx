@@ -1,9 +1,10 @@
-import { profile, projects } from '../data/portfolio.js';
+import { usePortfolio } from '../PortfolioContext.jsx';
 import Arrow from '../components/Arrow.jsx';
 import Container from '../components/Container.jsx';
 import ProjectEntry from '../components/ProjectEntry.jsx';
 
 export default function Work() {
+  const { profile, projects } = usePortfolio();
   const featured = projects.find((project) => project.featured);
   const supportingProjects = projects.filter((project) => !project.featured);
 

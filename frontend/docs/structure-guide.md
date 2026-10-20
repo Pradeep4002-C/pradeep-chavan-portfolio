@@ -52,8 +52,14 @@ frontend/
 ## `src/`: application source
 
 - **`main.jsx`** — the entry point. It checks for the `#root` element, renders the app with React `StrictMode`, and imports the global stylesheet.
-- **`App.jsx`** — composes the page sections and holds the skip link. `<main>` carries `tabindex="-1"` so the skip link moves focus into the content instead of only scrolling. Keep this file focused on page order rather than putting every detail here.
+- **`App.jsx`** — composes the page sections, wraps them in `PortfolioProvider`, and holds the skip link. `<main>` carries `tabindex="-1"` so the skip link moves focus into the content instead of only scrolling. Keep this file focused on page order rather than putting every detail here.
+- **`PortfolioContext.jsx`** — initialises content from `data/portfolio.js`, fetches `/api/portfolio` once after mount, aborts the request on unmount, ignores late responses, and exposes `profile`, `projects`, and `skillGroups` through `usePortfolio()`. Sections never import the API directly.
 - **`index.css`** — the whole global stylesheet. It contains only the Tailwind import, the `@theme` design tokens, a short `@layer base` block, the `transition-ui` utility, and the reduced-motion guard.
+
+### `src/api/`: the public API boundary
+
+- **`client.js`** — minimal same-origin JSON client. It uses relative `/api` paths, parses JSON safely, normalises network/non-2xx failures into `ApiError`, preserves abort errors, and never renders a server stack trace.
+- **`portfolio.js`** — fetches `/api/portfolio`, validates and normalises the payload into the shapes the existing components already expect, and applies the bundled fallback rules for empty or invalid fields.
 
 ### `src/components/`: reusable building blocks
 
@@ -75,9 +81,9 @@ frontend/
 - **`Contact.jsx`** — a single clear email action plus the location line; there is no pretend contact form.
 - **`Footer.jsx`** — copyright line, profile links, and a link back to the top of the page.
 
-### `src/data/`: content, not layout
+### `src/data/`: fallback content, not runtime layout
 
-- **`portfolio.js`** — profile details, verified-from-resume project repository URLs, project summaries/descriptions, technology tags, the `artwork` key that names each project's illustration, and skill groups. A project has no image field: it names a drawing, and the drawing itself lives in `ProjectArtwork.jsx`. Change this file to update content without editing the JSX structure.
+- **`portfolio.js`** — profile details, verified-from-resume project repository URLs, project summaries/descriptions, technology tags, the `artwork` key that names each project's illustration, and skill groups. It is rendered immediately as the offline fallback and is also imported directly by the server seed script. Once the API responds, non-empty valid database fields replace their bundled counterparts. A project has no image field: it names a drawing, and the drawing itself lives in `ProjectArtwork.jsx`.
 
 ## Styling rules
 
@@ -88,17 +94,18 @@ frontend/
 
 ## A useful mental model
 
-- **Data says what to show.** Example: project name, summary, description, technologies, and link in `data/portfolio.js`.
+- **Data says what to show.** Runtime content arrives from `GET /api/portfolio` through `PortfolioContext`; `data/portfolio.js` supplies the immediate fallback and the seed source.
 - **Components say how a reusable piece works.** Example: a `ProjectEntry` renders any project object.
 - **Sections say where page content belongs.** Example: `Work.jsx` arranges the featured and supporting projects.
 - **Tokens say what the design values are.** Example: `--color-accent` in `index.css` powers every `text-accent`, `bg-accent`, and `border-accent`.
 
 ## Safe workflow for a content change
 
-1. Update `src/data/portfolio.js`.
-2. Save and inspect the browser.
-3. Check the browser console.
-4. Run `npm run build` before sharing/deploying.
+1. For the bundled/offline content and seed source, update `src/data/portfolio.js`.
+2. Run `npm run seed:content` from the repository root to create newly added records; existing database records are not overwritten.
+3. With the API running, check that the database-backed page still renders correctly; without it, check that the fallback still renders.
+4. Check the browser console and network response.
+5. Run `npm run build` before sharing/deploying.
 
 ## Safe workflow for a component or style change
 
