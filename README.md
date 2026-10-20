@@ -6,13 +6,14 @@ A project-first portfolio: a **React + Vite + Tailwind CSS v4** frontend and an 
 
 | Area | State |
 | --- | --- |
-| Public frontend | Complete and verified — Home, Work, About, Contact, Footer, resume download |
+| Public frontend | Complete and verified — Home, Work, About, Contact form, Footer, resume download |
 | Backend foundation | Complete (M1) — configuration validation, MongoDB connection, security headers, health endpoint, error handling, graceful shutdown |
 | Database models and seeding | Complete (M2) — eight Mongoose models, indexes, idempotent content seed, secure administrator creation |
 | Public portfolio API and frontend integration | Complete (M3) — `GET /api/portfolio`, Vite development proxy, API client, and immediate static fallback |
-| Authentication, admin dashboard, project CRUD, contact persistence, production SPA serving | **Not implemented yet** — planned for later milestones |
+| Contact form and message persistence | Complete (M4) — `POST /api/contact`, inline validation, MongoDB storage, honeypot and timing checks, IP rate limiting |
+| Authentication, admin dashboard, project CRUD, message inbox, email notifications, production SPA serving | **Not implemented yet** — planned for later milestones |
 
-The React app renders the bundled content immediately, then replaces it with database-backed content when `GET /api/portfolio` succeeds. If the API is unavailable, the bundled content stays visible; the backend is not required merely to view the site. No part of the public design was redesigned during the backend work.
+The React app renders the bundled content immediately, then replaces it with database-backed content when `GET /api/portfolio` succeeds. If the API is unavailable, the bundled content stays visible; the backend is not required merely to view the site. The existing public design, copy, illustrations, and navigation remain in place; M4 adds the contact form inside the existing Contact section and changes no other section.
 
 ## Repository layout
 
@@ -35,6 +36,8 @@ Portfolio_new/
     ├── scripts/
     │   ├── seed-content.js      # Idempotent portfolio content seed
     │   └── create-admin.js      # Secure first-administrator initialization
+    ├── tests/
+    │   └── contact.test.js      # Isolated contact API tests
     └── src/
         ├── index.js             # Startup, shutdown, process-level error handling
         ├── app.js               # Express application (helmet, JSON parsing, routes)
@@ -43,11 +46,15 @@ Portfolio_new/
         │   └── db.js            # Mongoose connection and status
         ├── middleware/
         │   ├── notFound.js      # JSON 404 for unknown routes
-        │   └── errorHandler.js  # Central error handler
+        │   ├── errorHandler.js  # Central error handler
+        │   └── contactRateLimit.js # Five-per-hour contact limiter
         ├── models/              # Eight Mongoose models + ensureModelIndexes()
         ├── routes/
         │   ├── health.js        # GET /api/health
-        │   └── portfolio.js     # GET /api/portfolio
+        │   ├── portfolio.js     # GET /api/portfolio
+        │   └── contact.js       # POST /api/contact
+        ├── validation/
+        │   └── contact.js       # Zod contact schema and anti-spam helpers
         └── lib/
             ├── logger.js        # Structured JSON-line logger
             └── validators.js    # Shared email and http(s) URL checks
@@ -75,7 +82,10 @@ The frontend keeps its existing entry points, sections, illustrations, and styli
 | --- | --- | --- | --- |
 | `NODE_ENV` | No | `development` | `development`, `production`, or `test` |
 | `PORT` | No | `4000` | Port the Express API listens on |
+| `TRUST_PROXY` | No | `false` | Set `true` only behind exactly one trusted reverse proxy; required for correct IP rate limiting in that deployment |
 | `MONGODB_URI` | **Yes** | — | MongoDB connection string |
+
+`TRUST_PROXY` is deliberately off by default. When it is `false`, Express uses the socket address for `req.ip`; enabling it behind a proxy would otherwise let a caller spoof `X-Forwarded-For` and bypass the contact limiter. For a single-proxy host such as Render, set `TRUST_PROXY=true` so the limiter sees the visitor's IP. Do not enable it when the API is directly exposed to the internet.
 
 The server loads `.env` from the repository root by resolving the path relative to `server/src/config/env.js`, so it behaves the same whether it is started from the repository root or from `server/`. Variables already present in the process environment take precedence over the file.
 
@@ -128,6 +138,9 @@ Run the two applications in separate terminals.
 | `npm run start:server` | Start the API without watch mode |
 | `npm run seed:content` | Create missing portfolio records (safe to repeat) |
 | `npm run admin:create` | Create the first administrator interactively |
+| `npm test` | Run backend and frontend automated tests |
+| `npm run test:server` | Contact API tests against an isolated MongoDB database |
+| `npm run test:frontend` | Contact API client tests (Node test runner) |
 
 The same commands work directly inside `frontend/` (`npm run dev`, `npm run build`, `npm run preview`) and `server/` (`npm run dev`, `npm start`).
 
@@ -238,6 +251,84 @@ The exact project copy lives in the database; the example is abbreviated. Retrie
 - Every query is a lean, read-only query with an explicit projection. Administrator records, password hashes, contact messages, sessions, `_id`, `__v`, and timestamps cannot appear in this response.
 - If MongoDB is not connected, the endpoint returns `503` with `{"error":{"code":"DATABASE_UNAVAILABLE","message":"Portfolio content is temporarily unavailable."}}`. A query failure reaches the shared error middleware and returns `500 INTERNAL_ERROR` without data or a stack trace. A failed query never produces a successful response with invented content.
 
+## Contact API
+
+The public form posts JSON to the same-origin endpoint:
+
+```text
+POST /api/contact
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "name": "Visitor name",
+  "email": "visitor@example.com",
+  "subject": "Optional subject",
+  "message": "The visitor's message",
+  "website": "",
+  "formStartedAt": 1760980000000
+}
+```
+
+`website` and `formStartedAt` are anti-spam support fields, not part of the stored message. `website` is an off-screen honeypot; `formStartedAt` is the browser timestamp captured when the form component mounts. Unknown fields are rejected with `400`, so a request cannot set `read`, `meta`, timestamps, or any other database field.
+
+Accepted response — `201 Created`:
+
+```json
+{ "data": { "message": "Your message has been received." } }
+```
+
+Validation rules (trimmed first):
+
+| Field | Rule |
+| --- | --- |
+| `name` | Required, 1–80 characters |
+| `email` | Required, valid email shape, maximum 254 characters; stored lower-case |
+| `subject` | Optional, maximum 120 characters; stored as `''` when omitted |
+| `message` | Required, 10–5000 characters |
+| `website` | Honeypot; must be empty for a normal visitor |
+| `formStartedAt` | Integer millisecond timestamp; at least two seconds old |
+
+Validation failure — `400 Bad Request` with field messages:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "Please check the highlighted fields and try again.",
+    "fields": {
+      "email": "Enter a valid email address."
+    }
+  }
+}
+```
+
+The response never echoes submitted values. A body that is not valid JSON returns `400 INVALID_JSON`; a body over the 32 KB limit returns `413 PAYLOAD_TOO_LARGE`.
+
+For a legitimate submission the route validates the request, applies the honeypot and timing checks, checks the database connection, then creates one `ContactMessage` with `read: false` and Mongoose-managed timestamps. It returns success only after the save resolves. The honeypot value, timing value, IP address, and unrelated request fields are never written to the database. Contact message bodies and email addresses are not logged. `meta.ipHash` is intentionally left unset in this milestone.
+
+**Spam handling.** A filled honeypot or an invalid/too-fast timestamp is silently suppressed: the endpoint returns the same `201` body as an accepted message but stores nothing. This deliberately does not tell the caller which check failed. Timing checks are a speed bump, not a complete spam defence.
+
+**Rate limiting.** `POST /api/contact` is limited to **5 requests per IP address per hour**, using `express-rate-limit`'s in-memory store and standard `RateLimit` response headers. Limit responses are JSON:
+
+```json
+{
+  "error": {
+    "code": "RATE_LIMITED",
+    "message": "Too many messages have been sent. Please try again later."
+  }
+}
+```
+
+The limiter is applied only to the contact route, not to portfolio browsing. The in-memory store resets when the API process restarts and is per-process; a multi-instance deployment would need a shared store. See `TRUST_PROXY` above before deploying behind a proxy.
+
+If MongoDB is disconnected, the endpoint returns `503 DATABASE_UNAVAILABLE` without pretending the message was sent. An unexpected save failure returns `500 INTERNAL_ERROR` through the central handler, with no database details or stack trace.
+
+There is **no public message-read endpoint**. Contact messages are not included in `GET /api/portfolio` or any other public route; an admin inbox belongs to a later milestone. **Email notifications are not implemented in M4** — messages are stored only in MongoDB and no external email provider is called.
+
 ## Frontend data flow and fallback
 
 - `frontend/src/api/client.js` is a small JSON client. It uses relative `/api` URLs, parses JSON safely, turns network and non-2xx responses into a safe `ApiError`, and exposes only the server's public error message.
@@ -245,6 +336,8 @@ The exact project copy lives in the database; the example is abbreviated. Retrie
 - `frontend/src/PortfolioContext.jsx` initialises state from `frontend/src/data/portfolio.js`, so first paint never waits for the network. One request runs after mount, is aborted on unmount, and an unmounted component cannot be updated by a late response. There is no retry loop.
 - Non-empty, valid API values replace their bundled counterparts. Empty `headline`/`bio` values do not blank the existing hero or About copy, the bundled `education` line remains because no confirmed education record exists, and invalid URLs or empty strings keep the bundled value. A collection only replaces the bundled list when at least one valid record survives normalisation.
 - If the request fails, the bundled content remains on screen. The only diagnostic is one `console.warn` in development; production logs nothing and shows no error state, because the fallback is already the intended public experience.
+- The contact form uses `frontend/src/api/contact.js`, which posts through the shared `postJson` helper in `client.js`. It requires a confirmation message in a successful response; a malformed success response becomes an error, so the form can never show a false success.
+- Contact form state is local to `Contact.jsx`: validation messages sit beside the affected fields, the submit button is disabled while a request is in flight, a synchronous guard prevents double requests, and the `role="status"` region reports progress, success, or failure. Success clears the form; failure preserves every entered value for a retry. The request is aborted on unmount and late responses cannot update an unmounted component.
 - The Vite development proxy is the only proxy in this milestone. Relative URLs are used everywhere, so production can later serve the API and frontend from one origin without hard-coded `localhost` addresses.
 
 ## Database models
@@ -299,6 +392,31 @@ The script prompts for the password twice with hidden input. It requires **at le
 
 `.env` stays untracked; `.env.example` contains placeholders only.
 
+## Running tests
+
+```powershell
+npm test
+```
+
+Or run one side at a time:
+
+```powershell
+npm run test:server
+npm run test:frontend
+```
+
+The backend suite uses Node's built-in test runner and the real Mongoose model against an **isolated** database. By default it connects to:
+
+```text
+mongodb://127.0.0.1:27017/pradeep_portfolio_m4_test
+```
+
+Override it with `TEST_MONGODB_URI`. The suite refuses to run unless the database name ends in `_test`; it deletes only `contactmessages` documents in that database before and after the run. It never connects to, clears, drops, or writes to `pradeep_portfolio`. MongoDB must be running.
+
+The backend tests cover valid persistence, `read: false`, required fields, email shape and normalisation, subject-optional handling, length limits, unknown-field rejection, honeypot suppression, timing suppression, rate-limit `429` and headers, spoofed `X-Forwarded-For` handling, disconnected-database `503`, write-failure `500`, safe error bodies, invalid JSON, oversized bodies, health, portfolio, and the absence of a public contact-read route.
+
+The frontend suite uses Node's test runner with a mocked `fetch`; it does not render React. It covers the relative endpoint, request payload, success confirmation, validation-field propagation, malformed success responses, network failures, abort handling, and the absence of contact values in console output. The actual form was additionally exercised in a browser for labels, validation, loading, success, failure, and double-submit behaviour (see below).
+
 ## Inspecting the database
 
 With a local MongoDB:
@@ -329,6 +447,11 @@ With Atlas, open the cluster in the Atlas UI or connect with your own connection
 | `GET /api/portfolio` returns `503 DATABASE_UNAVAILABLE` | MongoDB is not connected. Start MongoDB and check `/api/health`; the API refuses to serve content with a disconnected database. |
 | Vite logs a proxy error for `/api/portfolio` and the browser gets a 500 | The API is not running on port 4000. Start it with `npm run dev:server` (or change the proxy target and API port together). |
 | The page shows a development warning `[portfolio] API content unavailable` | Working as designed when the API is down: the bundled content remains visible. Start the API to serve database content, or ignore the warning if you only need the static site. |
+| `POST /api/contact` returns `429 RATE_LIMITED` | Working as designed: five submissions from one IP address per hour. Wait for the window to pass or restart the development API to clear the in-memory limiter. |
+| `POST /api/contact` returns `503 DATABASE_UNAVAILABLE` | MongoDB is not connected. Start MongoDB and check `/api/health`; the form will not report success without a save. |
+| `npm run test:server` fails with `ECONNREFUSED 127.0.0.1:27017` | Start MongoDB, or set `TEST_MONGODB_URI` to a reachable isolated database whose name ends in `_test`. |
+| The contact form says it could not reach the service while the API is stopped | Expected: Vite's proxy returns a failed request, and the form preserves the entered values so you can retry after starting `npm run dev:server`. |
+| Rate limiting blocks every visitor behind a proxy | Set `TRUST_PROXY=true` on a single-proxy deployment so `req.ip` uses the forwarded client address; leave it `false` when the API is directly exposed. |
 | The production preview shows bundled content instead of database content | Expected: `vite preview` does not apply the development proxy. Production same-origin API serving is a later milestone. |
 | `E11000 duplicate key` while seeding | A document already uses that unique identifier (profile key, project slug, or skill-group label). The seed skips it and leaves it untouched; inspect it before changing anything. |
 | `An administrator with that email already exists` | Working as designed. The script never replaces an account or its password; use a different email or manage the existing account deliberately. |
@@ -409,13 +532,16 @@ Project repository destinations are sourced from the hyperlinks in the supplied 
 - Entries are separated by a hairline rule instead of being boxed into cards, and the featured row ends level because its panel stretches to the height of the copy from 1024px up. Below 480px every drawing switches to a stacked arrangement — rows instead of columns, the workflow connectors turned downward — because a three-up column at that width breaks words.
 - The only movement in the showcase is the arrow glyph inside a repository link, which shifts 2px on hover through a transform. The drawings have no hover state, and nothing in an entry is clickable except that one repository action. The global reduced-motion guard collapses the arrow transition, so it never animates for a visitor who has asked for reduced motion, and the repository action reuses the outline pill from the design system (the same 42px-tall target as the resume button).
 - Clicking a project entry does nothing and the one repository action is a real link, so the entry and its link never compete. There is no "Live demo" button, because none of the three projects has a public deployment.
-- The contact area has one clear email action instead of competing duplicate buttons, with the location shown as a small secondary line. A database-backed contact form is a later milestone.
+- The contact area pairs a direct email link with one accessible form: visible labels, required-field markers, inline error messages tied to their fields, a polite live status region, and a 47px submit target. Name and email share a row from 640px up; the message stays full width. The form panel uses the existing dark-section palette and a light button variant instead of introducing a second visual system.
+- A filled honeypot or a submission timestamp younger than two seconds is accepted with the same `201` body as a real message but is not stored. The frontend hides the honeypot off-screen, removes it from the accessibility tree, and keeps it out of the tab order. These checks are layered with a five-per-hour IP limiter; they are not presented as complete spam prevention.
+- The contact limiter uses an in-memory store and `TRUST_PROXY` is opt-in, so a deployment must explicitly declare that it sits behind one trusted proxy. This avoids both a shared-proxy IP bucket and blind trust of `X-Forwarded-For`.
+- Contact messages are stored in MongoDB with `read: false` and are never exposed by a public read route. Email notification is intentionally deferred; a database outage returns `503` rather than a false success.
 - The greeting types itself once, then stays visible. With `prefers-reduced-motion: reduce` it appears instantly with no cursor and no typing.
 - Interface icons are inline SVG, never emoji or text glyphs. The arrow characters (`→`, `↗`, `↑`) were replaced because Windows renders some of them (such as `↗`, U+2197) with emoji presentation, which is why the resume button once showed a blue emoji tile.
 - The resume button is labelled "Download resume" and downloads the PDF (`download` attribute on a same-origin link), so the label matches the action.
 - The header brand is a "PC" monogram beside the name; the letters are generated content so they stay out of the link's accessible name.
 - Nothing in the showcase stands in for an application screen: there is no screenshot, no placeholder box, no stock imagery, no imitation window, and no fabricated metric. The drawings are labelled diagrams, and each entry ends at one real repository link.
-- The public site renders the bundled portfolio immediately, then hydrates from `GET /api/portfolio`; a failed request leaves the bundled content untouched. Authentication, the admin dashboard, CRUD endpoints, contact persistence, image uploads, and production same-origin SPA serving arrive later.
+- The public site renders the bundled portfolio immediately, then hydrates from `GET /api/portfolio`; a failed request leaves the bundled content untouched. Authentication, the admin dashboard, CRUD endpoints, an admin message inbox, email notifications, image uploads, and production same-origin SPA serving arrive later.
 
 ## Accessibility and quality checks
 
@@ -440,3 +566,13 @@ M3 integration checks were run against the actual application:
 - Stopping the API and reloading left the full bundled portfolio visible, with one development warning and no retry loop. The same fallback was verified against the production preview, which has no development proxy.
 - The integrated page was measured at 320, 375, 768, 1024, and 1440 pixels wide: no horizontal overflow, three projects, four skill groups, zero `<img>` elements, the mobile menu below 768px, and no text escaping an illustration panel. The mobile menu opened, closed on Escape, and returned focus to its toggle.
 - The resume link returned `200` with `application/pdf`.
+
+M4 contact checks were run against the actual application with an isolated `pradeep_portfolio_m4_live_test` database:
+
+- `npm test` passed: **12 backend tests** and **6 frontend API-client tests**. The backend suite covered persistence, `read: false`, required fields, email shape/normalisation, subject-optional handling, length limits, unknown-field rejection, honeypot suppression, timing suppression, rate-limit `429` and headers, spoofed `X-Forwarded-For` handling, disconnected-database `503`, write-failure `500`, safe error bodies, invalid JSON, oversized bodies, health, portfolio, and the absence of a public contact-read route.
+- Five live form submissions were saved in the isolated database with `read: false`, correct timestamps, and no `website`, `formStartedAt`, or `meta` fields. The documents were then deleted with `deleteMany`; the database was not dropped. The real `pradeep_portfolio` database still had **0** contact messages after the checks.
+- Empty submission showed three inline errors, set `aria-invalid` on the affected fields, and moved focus to Name. The honeypot measured 1×1px, was clipped, had `aria-hidden="true"`, and had `tabIndex="-1"`. The focused field showed the accent focus ring.
+- A successful submission returned `201` through the Vite proxy, showed “Your message has been received.” in the live region, and cleared all four fields. A stopped API showed “Could not reach the contact service…” and preserved every entered value. A held request showed `disabled`, `aria-busy="true"`, “Sending…”, and two synchronous `requestSubmit()` calls still produced exactly one request.
+- The page was measured at 320, 360, 375, 390, 414, 480, 540, 640, 768, 820, 1024, 1280, and 1440 pixels wide: no horizontal overflow at any width, the form stayed inside its panel, the submit target stayed 47px tall, the mobile menu appeared below 768px, all three project cards remained, `#work` still rendered zero `<img>` elements, and the resume link still returned `200 application/pdf`.
+- The production build passed: **46 modules**, JS `index-CwX6RrHn.js` (184.36 kB), CSS `index-Cl1eassL.css` (34.89 kB). The CSS hash changed because the contact form added styles; the existing public sections were not redesigned.
+- Lighthouse against the production preview at `#contact` returned **100** for Accessibility, Best Practices, and SEO with no reported failures.

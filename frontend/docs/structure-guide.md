@@ -14,7 +14,13 @@ frontend/
 │   ├── favicon.svg
 │   ├── resume.pdf
 │   └── robots.txt
+├── tests/
+│   └── contact-api.test.js
 ├── src/
+│   ├── api/
+│   │   ├── client.js
+│   │   ├── contact.js
+│   │   └── portfolio.js
 │   ├── components/
 │   │   ├── Arrow.jsx
 │   │   ├── Brand.jsx
@@ -58,13 +64,14 @@ frontend/
 
 ### `src/api/`: the public API boundary
 
-- **`client.js`** — minimal same-origin JSON client. It uses relative `/api` paths, parses JSON safely, normalises network/non-2xx failures into `ApiError`, preserves abort errors, and never renders a server stack trace.
+- **`client.js`** — minimal same-origin JSON client. It uses relative `/api` paths, parses JSON safely, normalises network/non-2xx failures into `ApiError` (including safe field messages), preserves abort errors, and never renders a server stack trace.
 - **`portfolio.js`** — fetches `/api/portfolio`, validates and normalises the payload into the shapes the existing components already expect, and applies the bundled fallback rules for empty or invalid fields.
+- **`contact.js`** — posts `/api/contact` through the shared client and requires a human-readable confirmation in the response; a malformed success response is treated as an error so the form cannot show a false success.
 
 ### `src/components/`: reusable building blocks
 
 - **`Container.jsx`** — the shared max-width and responsive page padding used by every section.
-- **`Button.jsx`** — the link styled as a button, with `solid`/`outline` variants and `md`/`sm` sizes.
+- **`Button.jsx`** — shared pill styling for links and real buttons, with `solid`/`outline`/`light` variants and `md`/`sm` sizes. An `href` renders an anchor; without one it renders a `button`, so the contact submit control reuses the same target and focus treatment.
 - **`Arrow.jsx`** — the one consistent arrow shape (inline SVG, not a text glyph), used across buttons and links. It inherits the surrounding text colour and nudges on its `group` parent's hover.
 - **`DownloadIcon.jsx`** — the inline SVG download icon used by the resume button, matching `Arrow`'s 2px stroke.
 - **`Brand.jsx`** — the portfolio wordmark, used only in the sticky header (the footer deliberately does not repeat it). The "PC" monogram is drawn with generated content so the mark stays decorative and never clashes with the link's accessible name.
@@ -78,7 +85,7 @@ frontend/
 - **`Hero.jsx`** — the typewriter greeting, the main statement, and links into the portfolio.
 - **`Work.jsx`** — the two-tier gallery: it picks the project flagged `featured` and renders it as the wide leading row, then renders the remaining projects one type step down in a two-column tier from 1024px up (a single column below). Rows are divided by hairline rules rather than boxed into cards, and the section closes with a line to the GitHub profile.
 - **`About.jsx`** — a brief bio, education line, and skill groups.
-- **`Contact.jsx`** — a single clear email action plus the location line; there is no pretend contact form.
+- **`Contact.jsx`** — the contact heading and direct email link plus an accessible form for name, email, optional subject, and message. It keeps values on failure, clears them only after the API confirms a save, disables the button and guards against double requests while submitting, and exposes progress in a polite live region. The honeypot is off-screen, `aria-hidden`, and outside the tab order.
 - **`Footer.jsx`** — copyright line, profile links, and a link back to the top of the page.
 
 ### `src/data/`: fallback content, not runtime layout
@@ -105,7 +112,7 @@ frontend/
 2. Run `npm run seed:content` from the repository root to create newly added records; existing database records are not overwritten.
 3. With the API running, check that the database-backed page still renders correctly; without it, check that the fallback still renders.
 4. Check the browser console and network response.
-5. Run `npm run build` before sharing/deploying.
+5. Run `npm test` and `npm run build` before sharing/deploying.
 
 ## Safe workflow for a component or style change
 

@@ -84,7 +84,7 @@ async function start() {
     return;
   }
 
-  const app = createApp();
+  const app = createApp({ trustProxy: config.trustProxy });
   httpServer = app.listen(config.port);
 
   httpServer.on('listening', () => {

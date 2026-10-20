@@ -16,6 +16,7 @@ dotenv.config({ path: ENV_FILE_PATH, quiet: true });
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  TRUST_PROXY: z.enum(['true', 'false']).default('false'),
   MONGODB_URI: z
     .string()
     .trim()
@@ -53,6 +54,7 @@ export function loadEnv(source = process.env) {
   return Object.freeze({
     nodeEnv: result.data.NODE_ENV,
     isProduction: result.data.NODE_ENV === 'production',
+    trustProxy: result.data.TRUST_PROXY === 'true',
     port: result.data.PORT,
     mongodbUri: result.data.MONGODB_URI,
     envFilePath: ENV_FILE_PATH,

@@ -5,27 +5,53 @@
  * - Non-2xx responses become ApiError with a safe message from the server.
  * - Network and unreadable-response failures are normalised into ApiError.
  * - Abort errors are rethrown unchanged so callers can ignore them.
+ * - Only string field messages are retained; arbitrary response objects are
+ *   never exposed to the page.
  */
 const API_ROOT = '/api';
 
 export class ApiError extends Error {
-  constructor(message, { status, code } = {}) {
+  constructor(message, { status, code, fields } = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.fields = fields;
   }
 }
 
-export async function getJson(path, { signal } = {}) {
+function safeFieldMessages(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value)
+    .filter(
+      ([key, message]) =>
+        typeof key === 'string' &&
+        key.length > 0 &&
+        typeof message === 'string' &&
+        message.length > 0 &&
+        message.length <= 500,
+    )
+    .slice(0, 20);
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+async function requestJson(path, { method = 'GET', body, signal } = {}) {
+  const headers = { Accept: 'application/json' };
+  const init = { method, headers, signal };
+
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(body);
+  }
+
   let response;
 
   try {
-    response = await fetch(`${API_ROOT}${path}`, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      signal,
-    });
+    response = await fetch(`${API_ROOT}${path}`, init);
   } catch (error) {
     if (error?.name === 'AbortError') {
       throw error;
@@ -50,6 +76,7 @@ export async function getJson(path, { signal } = {}) {
     throw new ApiError(message, {
       status: response.status,
       code: payload?.error?.code ?? 'HTTP_ERROR',
+      fields: safeFieldMessages(payload?.error?.fields),
     });
   }
 
@@ -61,4 +88,12 @@ export async function getJson(path, { signal } = {}) {
   }
 
   return payload;
+}
+
+export function getJson(path, { signal } = {}) {
+  return requestJson(path, { method: 'GET', signal });
+}
+
+export function postJson(path, body, { signal } = {}) {
+  return requestJson(path, { method: 'POST', body, signal });
 }
