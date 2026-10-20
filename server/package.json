@@ -1,0 +1,21 @@
+{
+  "name": "pradeep-portfolio-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Express API for Pradeep Chavan's portfolio",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "mongoose": "^9.11.2",
+    "zod": "^4.6.7"
+  }
+}

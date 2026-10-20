@@ -1,59 +1,196 @@
 # Pradeep Chavan — Developer Portfolio
 
-A project-first portfolio built with React, Vite, and Tailwind CSS v4. The resume supplies factual details and repository destinations; the website is designed around selected work instead of repeating the full CV.
+A project-first portfolio: a **React + Vite + Tailwind CSS v4** frontend and an **Express 5 + MongoDB (Mongoose)** API in one repository. The resume supplies factual details and repository destinations; the website is designed around selected work instead of repeating the full CV.
 
-## Run locally
+## Current status
 
-Open a terminal **inside `frontend/`** and run:
+| Area | State |
+| --- | --- |
+| Public frontend | Complete and verified — Home, Work, About, Contact, Footer, resume download |
+| Backend foundation | Complete (M1) — configuration validation, MongoDB connection, security headers, health endpoint, error handling, graceful shutdown |
+| Authentication, admin dashboard, models, project CRUD, contact persistence, public API data fetching | **Not implemented yet** — planned for later milestones |
 
-```powershell
-npm install
-npm run dev
-```
+The frontend still renders its own curated content and does not call the API yet. Nothing in the public site was redesigned during the backend work.
 
-Open the local URL printed by Vite (usually `http://localhost:5173/`).
-
-Build for production:
-
-```powershell
-npm run build
-```
-
-Preview the production build:
-
-```powershell
-npm run preview
-```
-
-## Project structure
+## Repository layout
 
 ```text
-frontend/
-├── index.html                  # Browser metadata and React mount point
-├── package.json                # Dependencies and npm commands
-├── vite.config.js              # Vite + React + Tailwind configuration
-├── public/
-│   ├── favicon.svg              # Browser-tab icon
-│   ├── resume.pdf               # Downloadable resume
-│   └── robots.txt               # Crawler rules
-├── src/
-│   ├── components/              # Reusable UI components
-│   ├── data/portfolio.js        # Profile, project, and skill content
-│   ├── sections/                # Hero, Work, About, Contact, Footer
-│   ├── App.jsx                  # Composes page sections
-│   ├── main.jsx                 # React entry point
-│   └── index.css                # Tailwind import, tokens, base layer, focus utility
-└── docs/                        # Design and code structure notes
+Portfolio_new/
+├── .env.example                 # Documented environment placeholders (safe to commit)
+├── .gitignore
+├── package.json                 # Root convenience scripts
+├── README.md
+├── CODE-COPY-PASTE.md           # Generated mirror of the frontend source files
+├── frontend/                    # React + Vite + Tailwind app
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── public/                  # favicon.svg, resume.pdf, robots.txt
+│   ├── docs/                    # Design and structure notes
+│   └── src/                     # components, sections, data, styles
+└── server/                      # Express API
+    ├── package.json
+    └── src/
+        ├── index.js             # Startup, shutdown, process-level error handling
+        ├── app.js               # Express application (helmet, JSON parsing, routes)
+        ├── config/
+        │   ├── env.js           # dotenv + Zod validation
+        │   └── db.js            # Mongoose connection and status
+        ├── middleware/
+        │   ├── notFound.js      # JSON 404 for unknown routes
+        │   └── errorHandler.js  # Central error handler
+        ├── routes/
+        │   └── health.js        # GET /api/health
+        └── lib/
+            └── logger.js        # Structured JSON-line logger
 ```
 
-Read `frontend/docs/structure-guide.md` for the role of each file and how the parts fit together. `CODE-COPY-PASTE.md` at the project root contains the editable text/code of each source file grouped by its path.
+The frontend has not moved: its entry points and design are unchanged. Read `frontend/docs/structure-guide.md` for the role of each frontend file.
 
-## Styling with Tailwind CSS v4
+## Prerequisites
+
+- **Node.js 20 or newer** — developed and tested on Node 22.20 with npm 10.9.
+- **MongoDB** — either a local server (`mongod` on `127.0.0.1:27017`) or a MongoDB Atlas cluster.
+- npm (bundled with Node.js).
+
+## Environment configuration
+
+1. Copy the example file to the repository root:
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+2. Set the values for your machine. `.env` is ignored by Git; `.env.example` is not.
+
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `NODE_ENV` | No | `development` | `development`, `production`, or `test` |
+| `PORT` | No | `4000` | Port the Express API listens on |
+| `MONGODB_URI` | **Yes** | — | MongoDB connection string |
+
+The server loads `.env` from the repository root by resolving the path relative to `server/src/config/env.js`, so it behaves the same whether it is started from the repository root or from `server/`. Variables already present in the process environment take precedence over the file.
+
+Configuration is validated with Zod before anything else starts. Missing or invalid values stop the process with exit code `1` and a JSON error naming each variable — values themselves are never echoed, so credentials cannot leak into logs:
+
+```json
+{"level":"error","message":"Invalid environment configuration","issues":[{"variable":"MONGODB_URI","message":"must start with mongodb:// or mongodb+srv://"}]}
+```
+
+## MongoDB setup
+
+**Local MongoDB.** Install MongoDB Community Server, make sure the service is running, and use the default connection string:
+
+```text
+mongodb://127.0.0.1:27017/pradeep_portfolio
+```
+
+**MongoDB Atlas (free tier).**
+
+1. Create a free M0 cluster.
+2. Create a database user with a strong password.
+3. Allow your current IP address in **Network Access**.
+4. Copy the driver connection string and replace the database name:
+
+```text
+mongodb+srv://<username>:<password>@<cluster-host>/pradeep_portfolio?retryWrites=true&w=majority
+```
+
+The API refuses to start until the database connection succeeds. No models, indexes, or seed data exist yet; the `pradeep_portfolio` database is only opened, not written to.
+
+## Install
+
+```powershell
+npm --prefix frontend ci
+npm --prefix server ci
+```
+
+Or in one step: `npm run install:all`.
+
+## Development commands
+
+Run the two applications in separate terminals.
+
+| Command (from the repository root) | What it does |
+| --- | --- |
+| `npm run dev:frontend` | Vite dev server at `http://localhost:5173/` |
+| `npm run dev:server` | API with Node's watch mode at `http://localhost:4000/` |
+| `npm run build:frontend` | Production build into `frontend/dist/` |
+| `npm run preview:frontend` | Preview the production build |
+| `npm run start:server` | Start the API without watch mode |
+
+The same commands work directly inside `frontend/` (`npm run dev`, `npm run build`, `npm run preview`) and `server/` (`npm run dev`, `npm start`).
+
+There is deliberately no combined `dev` script: the frontend and API are separate processes, and running them in two terminals gives clearer logs.
+
+## Health endpoint
+
+```powershell
+curl.exe http://localhost:4000/api/health
+```
+
+Healthy response — `200 OK`:
+
+```json
+{
+  "status": "ok",
+  "uptime": 6.999,
+  "timestamp": "2026-10-20T14:52:38.388Z",
+  "database": { "status": "connected", "readyState": 1 }
+}
+```
+
+If the connection drops after startup, the same endpoint returns `503 Service Unavailable` with `"status": "degraded"`. It exposes no environment values, connection strings, hostnames, or stack traces.
+
+## API behaviour
+
+- JSON-only requests with a **32 KB** body limit.
+- Unknown routes return a JSON `404`:
+
+  ```json
+  { "error": { "code": "NOT_FOUND", "message": "The requested resource was not found." } }
+  ```
+
+- Malformed JSON returns `400 INVALID_JSON`; an oversized body returns `413 PAYLOAD_TOO_LARGE`.
+- Unexpected failures return `500 INTERNAL_ERROR` without a stack trace in production. Development responses include a stack trace for 5xx errors only.
+- Helmet sets security headers on every response; `X-Powered-By` is disabled.
+- There is **no SPA fallback and no CORS configuration yet** — both belong to the integration milestone.
+
+## Troubleshooting
+
+| Symptom | Likely cause and fix |
+| --- | --- |
+| `Invalid environment configuration` with `MONGODB_URI` | `.env` is missing at the repository root, or the variable is unset. Copy `.env.example` and fill it in. |
+| `must start with mongodb://` | The URI uses the wrong scheme or is a placeholder that was not replaced. |
+| `Database connection failed — the API was not started` (`ECONNREFUSED 127.0.0.1:27017`) | MongoDB is not running, or the host/port is wrong. Start the MongoDB service or check the URI. |
+| Atlas connection times out or authentication fails | The cluster host, database user, password, or IP allowlist is wrong. Verify all four in Atlas. |
+| `EADDRINUSE` on port 4000 | Another process is listening on 4000. Stop it or set a different `PORT`. |
+| The API exits with code `1` and never listens | Working as designed: configuration or the database connection failed. Read the JSON log line for the cause. |
+| Frontend looks out of date | Rebuild with `npm run build:frontend` and reload; `dist/` is generated and ignored by Git. |
+
+## Frontend
+
+### Run locally
+
+```powershell
+npm --prefix frontend run dev
+```
+
+Open the URL printed by Vite (usually `http://localhost:5173/`).
+
+Build and preview:
+
+```powershell
+npm --prefix frontend run build
+npm --prefix frontend run preview
+```
+
+### Styling with Tailwind CSS v4
 
 Tailwind is the primary styling system. It is wired in through the first-party Vite plugin, not PostCSS or a CLI build step:
 
-- `vite.config.js` registers `@tailwindcss/vite`.
-- `src/index.css` starts with `@import "tailwindcss";` and defines the design tokens in an `@theme` block.
+- `frontend/vite.config.js` registers `@tailwindcss/vite`.
+- `frontend/src/index.css` starts with `@import "tailwindcss";` and defines the design tokens in an `@theme` block.
 - Components and sections are styled with Tailwind utilities in their `className` values.
 
 Design tokens live in one place. Adding to `@theme` in `src/index.css` automatically creates matching utilities:
@@ -68,7 +205,7 @@ Design tokens live in one place. Adding to `@theme` in `src/index.css` automatic
 
 `src/index.css` stays deliberately small: the Tailwind import, the token block, a short base layer, one small `transition-ui` utility, and a reduced-motion guard. Everything else is utility classes in the components.
 
-## Design direction
+### Design direction
 
 - **Squarespace** informed the restrained typography, whitespace, and work-led composition.
 - **Hostinger** informed the straightforward work/about/contact flow and mobile-friendly layout.
@@ -76,7 +213,7 @@ Design tokens live in one place. Adding to `@theme` in `src/index.css` automatic
 
 These are design principles, not copied templates.
 
-## Where to edit
+### Where to edit
 
 - Change name, email, profile links, project descriptions, repository destinations, and skill groups in `frontend/src/data/portfolio.js`.
 - Change the page order in `frontend/src/App.jsx`.
@@ -101,17 +238,17 @@ Project repository destinations are sourced from the hyperlinks in the supplied 
 - Entries are separated by a hairline rule instead of being boxed into cards, and the featured row ends level because its panel stretches to the height of the copy from 1024px up. Below 480px every drawing switches to a stacked arrangement — rows instead of columns, the workflow connectors turned downward — because a three-up column at that width breaks words.
 - The only movement in the showcase is the arrow glyph inside a repository link, which shifts 2px on hover through a transform. The drawings have no hover state, and nothing in an entry is clickable except that one repository action. The global reduced-motion guard collapses the arrow transition, so it never animates for a visitor who has asked for reduced motion, and the repository action reuses the outline pill from the design system (the same 42px-tall target as the resume button).
 - Clicking a project entry does nothing and the one repository action is a real link, so the entry and its link never compete. There is no "Live demo" button, because none of the three projects has a public deployment.
-- The contact area has one clear email action instead of competing duplicate buttons, with the location shown as a small secondary line.
+- The contact area has one clear email action instead of competing duplicate buttons, with the location shown as a small secondary line. A database-backed contact form is a later milestone.
 - The greeting types itself once, then stays visible. With `prefers-reduced-motion: reduce` it appears instantly with no cursor and no typing.
 - Interface icons are inline SVG, never emoji or text glyphs. The arrow characters (`→`, `↗`, `↑`) were replaced because Windows renders some of them (such as `↗`, U+2197) with emoji presentation, which is why the resume button once showed a blue emoji tile.
 - The resume button is labelled "Download resume" and downloads the PDF (`download` attribute on a same-origin link), so the label matches the action.
 - The header brand is a "PC" monogram beside the name; the letters are generated content so they stay out of the link's accessible name.
 - Nothing in the showcase stands in for an application screen: there is no screenshot, no placeholder box, no stock imagery, no imitation window, and no fabricated metric. The drawings are labelled diagrams, and each entry ends at one real repository link.
-- No backend, API, database, authentication, fake contact form, or ML service is part of this frontend phase.
+- The frontend is intentionally independent of the API in this milestone. Authentication, the admin dashboard, models, seeding, and contact persistence arrive later; the public site keeps working while they are built.
 
 ## Accessibility and quality checks
 
-Measured with Lighthouse against the production build, re-run after the gallery was redesigned:
+Measured with Lighthouse against the production build:
 
 | Category | Score |
 | --- | --- |
