@@ -18,7 +18,9 @@ frontend/
 │   ├── contact-api.test.js
 │   ├── auth-api.test.js
 │   ├── admin-api.test.js
-│   └── project-form.test.js
+│   ├── admin-content-api.test.js
+│   ├── project-form.test.js
+│   └── resource-form.test.js
 ├── src/
 │   ├── admin/
 │   │   ├── AdminRoot.jsx
@@ -29,6 +31,15 @@ frontend/
 │   │   ├── AdminOverviewPage.jsx
 │   │   ├── AdminProjectsPage.jsx
 │   │   ├── ProjectFormDialog.jsx
+│   │   ├── AdminMessagesPage.jsx
+│   │   ├── AdminProfilePage.jsx
+│   │   ├── ResourceManager.jsx
+│   │   ├── resourceConfigs.js
+│   │   ├── resourceForm.js
+│   │   ├── AdminSkillsPage.jsx
+│   │   ├── AdminEducationPage.jsx
+│   │   ├── AdminCertificationsPage.jsx
+│   │   ├── AdminAchievementsPage.jsx
 │   │   ├── AdminUi.jsx
 │   │   ├── adminApi.js
 │   │   └── projectForm.js
@@ -79,7 +90,7 @@ frontend/
 
 ### `src/api/`: the public API boundary
 
-- **`client.js`** — minimal same-origin JSON client. It uses relative `/api` paths, parses JSON safely, normalises network/non-2xx failures into `ApiError` (including safe field messages), preserves abort errors, and never renders a server stack trace. It exposes `getJson`, `postJson`, `patchJson`, and `deleteJson`; a `204 No Content` response resolves to `null`, which is what project deletion returns.
+- **`client.js`** — minimal same-origin JSON client. It uses relative `/api` paths, parses JSON safely, normalises network/non-2xx failures into `ApiError` (including safe field messages), preserves abort errors, and never renders a server stack trace. It exposes `getJson`, `postJson`, `patchJson`, `putJson`, and `deleteJson`; a `204 No Content` response resolves to `null`, which is what project, message, and collection deletion return.
 - **`portfolio.js`** — fetches `/api/portfolio`, validates and normalises the payload into the shapes the existing components already expect, and applies the bundled fallback rules for empty or invalid fields.
 - **`contact.js`** — posts `/api/contact` through the shared client and requires a human-readable confirmation in the response; a malformed success response is treated as an error so the form cannot show a false success.
 
@@ -87,16 +98,22 @@ frontend/
 
 This folder is the whole `/admin` area. It is imported lazily from `main.jsx`, so none of it is in the public bundle. It reuses the shared `Button`, `Container`, and design tokens; it introduces no second UI framework.
 
-- **`AdminRoot.jsx`** — the router and route tree. It renders `AdminAuthProvider`, then `/admin/login` publicly and `/admin` and `/admin/projects` behind `ProtectedRoute` and `AdminLayout`. An unknown `/admin/*` path redirects to `/admin`.
+- **`AdminRoot.jsx`** — the router and route tree. It renders `AdminAuthProvider`, then `/admin/login` publicly and every other page behind `ProtectedRoute` and `AdminLayout`. Each page is lazy-loaded, so a page chunk is requested only when it is first opened. An unknown `/admin/*` path redirects to `/admin`.
 - **`AdminAuthContext.jsx`** — the session state machine (`loading`, `authenticated`, `unauthenticated`, `error`). It initialises from `GET /api/auth/me`, treats `401` as signed out, treats a network/server failure as an error instead of a false sign-out, and exposes `login`, `logout`, and `markUnauthenticated` for reacting to a `401` from a later protected request.
 - **`ProtectedRoute.jsx`** — shows a loading state while the session is checked, redirects unauthenticated visitors to `/admin/login`, and offers a retry on error. It never flashes protected content.
-- **`AdminLayout.jsx`** — the responsive shell: a fixed sidebar from 1024px up, a disclosure menu below it, the Overview and Projects links, the signed-in identity, and sign-out.
+- **`AdminLayout.jsx`** — the responsive shell: a fixed sidebar from 1024px up, a disclosure menu below it, the links to Overview, Projects, Messages, Skills, Education, Certifications, Achievements, and Profile, the signed-in identity, and sign-out. It wraps the page outlet in `Suspense` so the shell stays visible while a page chunk loads.
 - **`AdminLoginPage.jsx`** — the labelled email/password form with show/hide password, a distinct message when the server is unreachable, a generic message for bad credentials, and no success claim before the backend confirms.
 - **`AdminOverviewPage.jsx`** — reads `GET /api/admin/overview` and shows the aggregate counts.
 - **`AdminProjectsPage.jsx`** — reads `GET /api/admin/projects`, renders a table on wide screens and stacked cards on narrow ones, and offers Refresh, Add, Edit, Publish/Unpublish, and Delete with a confirmation dialog.
 - **`ProjectFormDialog.jsx`** — the create/edit form for every sensible project field, with inline server field errors mapped back to the right inputs.
-- **`AdminUi.jsx`** — the shared admin controls and states (page header, notices, field, dialog, confirmation, empty/error/loading blocks).
-- **`adminApi.js`** — typed wrappers over the shared client for the overview and project endpoints, validating response shapes so a malformed payload becomes an error rather than broken UI.
+- **`AdminMessagesPage.jsx`** — the inbox: All/Unread/Read filters, pagination, expandable message bodies, explicit read/unread toggles, delete with confirmation, and loading/empty/error states.
+- **`AdminProfilePage.jsx`** — the profile editor. Text fields mirror the model, the biography is a list of individual text areas (add/remove up to 20), and the saved values are refilled from the `PUT` response.
+- **`ResourceManager.jsx`** — the shared list/create/edit/delete/reorder UI for the four ordered collections: ordered rows with Move up / Move down, a field-driven dialog, inline validation, and destructive confirmation.
+- **`resourceConfigs.js`** — the field descriptors, labels, empty-state copy, and summary renderers for skills, education, certifications, and achievements, plus the education year cross-check.
+- **`resourceForm.js`** — pure helpers shared by every collection: record → editable strings, strings → request payload, comma-list parsing, and client-side validation. Kept DOM-free so it can be unit tested.
+- **`AdminSkillsPage.jsx`**, **`AdminEducationPage.jsx`**, **`AdminCertificationsPage.jsx`**, **`AdminAchievementsPage.jsx`** — thin wrappers that pass a config to `ResourceManager`.
+- **`AdminUi.jsx`** — the shared admin controls, states, and overlays (page header, notices, field styles, dialog, confirmation dialog, pagination, empty/error/loading blocks).
+- **`adminApi.js`** — typed wrappers over the shared client for the overview, project, inbox, collection, and profile endpoints, validating response shapes so a malformed payload becomes an error rather than broken UI. The four ordered collections are built from one `createResourceApi` factory.
 - **`projectForm.js`** — pure helpers: slug generation from a title and comma-separated technology parsing.
 
 ### `src/components/`: reusable building blocks

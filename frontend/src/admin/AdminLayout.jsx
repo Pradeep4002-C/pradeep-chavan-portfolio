@@ -1,12 +1,18 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import { useAdminAuth } from './AdminAuthContext.jsx';
-import { AdminBrand, AdminPill, Notice, describeError } from './AdminUi.jsx';
+import { AdminBrand, AdminLoading, AdminPill, Notice, describeError } from './AdminUi.jsx';
 
 const NAV_ITEMS = [
   { to: '/admin', label: 'Overview', end: true },
   { to: '/admin/projects', label: 'Projects', end: false },
+  { to: '/admin/messages', label: 'Messages', end: false },
+  { to: '/admin/skills', label: 'Skills', end: false },
+  { to: '/admin/education', label: 'Education', end: false },
+  { to: '/admin/certifications', label: 'Certifications', end: false },
+  { to: '/admin/achievements', label: 'Achievements', end: false },
+  { to: '/admin/profile', label: 'Profile', end: false },
 ];
 
 function navLinkClass({ isActive }) {
@@ -154,7 +160,9 @@ export default function AdminLayout() {
               </Notice>
             </div>
           ) : null}
-          <Outlet />
+          <Suspense fallback={<AdminLoading label="Loading…" />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

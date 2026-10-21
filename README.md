@@ -13,9 +13,10 @@ A project-first portfolio: a **React + Vite + Tailwind CSS v4** frontend and an 
 | Contact form and message persistence | Complete (M4) — `POST /api/contact`, inline validation, MongoDB storage, honeypot and timing checks, IP rate limiting |
 | Administrator authentication | Complete (M5) — MongoDB-backed sessions, Argon2id login, lockout and login rate limiting, origin checks, reusable auth middleware |
 | Admin dashboard and project management | Complete (M6) — protected `/admin` React routes, database-backed overview, administrator project CRUD API and UI, publish/unpublish, validation and tests |
-| Message inbox, skill/education/certification/achievement CRUD, profile editing, email notifications, image uploads, production SPA serving | **Not implemented yet** — planned for later milestones |
+| Message inbox and content management | Complete (M7) — contact-message inbox (filter, read/unread, delete), skill-group/education/certification/achievement CRUD with ordering, profile editing, protected APIs, validation and tests |
+| Email notifications, image and resume uploads, production SPA serving | **Not implemented yet** — planned for later milestones |
 
-The React app renders the bundled content immediately, then replaces it with database-backed content when `GET /api/portfolio` succeeds. If the API is unavailable, the bundled content stays visible; the backend is not required merely to view the site. The existing public design, copy, illustrations, and navigation remain in place; M4 adds the contact form inside the existing Contact section and changes no other section. M6 adds a separate administrator application under `/admin` that is loaded lazily, so the public portfolio bundle and design are unaffected.
+The React app renders the bundled content immediately, then replaces it with database-backed content when `GET /api/portfolio` succeeds. If the API is unavailable, the bundled content stays visible; the backend is not required merely to view the site. The existing public design, copy, illustrations, and navigation remain in place; M4 adds the contact form inside the existing Contact section and changes no other section. M6 adds a separate administrator application under `/admin` that is loaded lazily, so the public portfolio bundle and design are unaffected. M7 adds administrator pages and APIs for the message inbox and the remaining content collections; it adds no new public section and changes no public layout.
 
 ## Repository layout
 
@@ -42,7 +43,8 @@ Portfolio_new/
     ├── tests/
     │   ├── contact.test.js      # Isolated contact API tests
     │   ├── auth.test.js         # Isolated authentication and session tests
-    │   └── admin.test.js        # Isolated admin overview and project CRUD tests
+    │   ├── admin.test.js        # Isolated admin overview and project CRUD tests
+    │   └── admin-content.test.js # Isolated inbox and content-management tests (M7)
     └── src/
         ├── index.js             # Startup, shutdown, process-level error handling
         ├── app.js               # Express application (helmet, JSON parsing, routes)
@@ -64,13 +66,16 @@ Portfolio_new/
         │   ├── portfolio.js     # GET /api/portfolio
         │   ├── contact.js       # POST /api/contact
         │   ├── auth.js          # POST /api/auth/login, GET /me, POST /logout
-        │   └── admin.js         # /api/admin overview and project CRUD (M6)
+        │   ├── admin.js         # /api/admin overview and project CRUD (M6)
+        │   └── adminContent.js  # /api/admin inbox, content collections, profile (M7)
         ├── validation/
         │   ├── contact.js       # Zod contact schema and anti-spam helpers
         │   ├── auth.js          # Zod login schema
-        │   └── project.js       # Zod project create/update schemas
+        │   ├── project.js       # Zod project create/update schemas
+        │   └── content.js       # Zod schemas for messages, collections, profile
         └── lib/
             ├── admin.js         # Safe admin response shape
+            ├── adminHttp.js     # Shared admin response/error/id helpers
             ├── logger.js        # Structured JSON-line logger
             ├── password.js      # Shared Argon2id helpers
             ├── safeError.js     # Log-safe operational error category
@@ -438,9 +443,9 @@ State-changing authentication requests (`POST /api/auth/login` and `POST /api/au
 
 No wildcard CORS is configured. In production, serve the API and frontend from the same HTTPS origin; if they must differ, set `CLIENT_ORIGIN` to the exact frontend origin and set `TRUST_PROXY=true` behind the TLS-terminating proxy so `req.protocol` and the session cookie are correct.
 
-## Administrator dashboard and project management
+## Administrator dashboard, projects, and content management
 
-M6 adds the first usable administrator UI and database-backed project management, built on the M5 sessions. **The backend remains the security boundary**; the frontend route guard is a convenience only. Skills, education, certifications, achievements, profile editing, and the contact-message inbox are deliberately **not** part of this milestone.
+M6 adds the first usable administrator UI and database-backed project management, built on the M5 sessions. M7 completes the rest of the content surface: the contact-message inbox, skill groups, education, certifications, achievements, and the profile. **The backend remains the security boundary**; the frontend route guard is a convenience only.
 
 ### Admin routes (frontend)
 
@@ -449,14 +454,20 @@ M6 adds the first usable administrator UI and database-backed project management
 | `/admin/login` | Public | Sign-in form |
 | `/admin` | Protected | Dashboard overview |
 | `/admin/projects` | Protected | Project management |
+| `/admin/messages` | Protected | Contact-message inbox |
+| `/admin/skills` | Protected | Skill groups |
+| `/admin/education` | Protected | Education entries |
+| `/admin/certifications` | Protected | Certifications |
+| `/admin/achievements` | Protected | Achievements |
+| `/admin/profile` | Protected | Profile editing |
 
-The administrator application is a second React root, loaded lazily only when `window.location.pathname` starts with `/admin`. The public portfolio bundle therefore contains no router and no dashboard code, and the public navigation, footer, sections, illustrations, and the `/#work`, `/#about`, `/#contact` anchors are unchanged. The admin area has its own responsive shell — a desktop sidebar and a mobile disclosure menu — shows the signed-in administrator's name and email, and offers sign-out. Only Overview and Projects are linked, because those are the only implemented sections.
+The administrator application is a second React root, loaded lazily only when `window.location.pathname` starts with `/admin`. The public portfolio bundle therefore contains no router and no dashboard code, and the public navigation, footer, sections, illustrations, and the `/#work`, `/#about`, `/#contact` anchors are unchanged. The admin area has its own responsive shell — a desktop sidebar and a mobile disclosure menu — shows the signed-in administrator's name and email, and offers sign-out. Every admin page is itself lazy-loaded, so a page's code is fetched only when it is first opened. No admin route is linked from the public site.
 
 `frontend/src/admin/` holds the admin application:
 
 | File | Role |
 | --- | --- |
-| `AdminRoot.jsx` | Browser router and route tree |
+| `AdminRoot.jsx` | Browser router and route tree (lazy pages) |
 | `AdminAuthContext.jsx` | Session state (`loading`, `authenticated`, `unauthenticated`, `error`) |
 | `ProtectedRoute.jsx` | Redirects unauthenticated visitors to `/admin/login` |
 | `AdminLayout.jsx` | Responsive shell, navigation, identity, sign-out |
@@ -464,9 +475,15 @@ The administrator application is a second React root, loaded lazily only when `w
 | `AdminOverviewPage.jsx` | Database-backed counts |
 | `AdminProjectsPage.jsx` | Project list and row actions |
 | `ProjectFormDialog.jsx` | Create/edit form |
+| `AdminMessagesPage.jsx` | Inbox with filters, read/unread, delete |
+| `AdminProfilePage.jsx` | Profile editor with a paragraph-by-paragraph biography |
+| `ResourceManager.jsx` | Shared list/create/edit/delete/reorder UI for ordered collections |
+| `resourceConfigs.js` | Field descriptors for skills, education, certifications, achievements |
+| `resourceForm.js` | Pure helpers: values ↔ payload, list parsing, client validation |
+| `AdminSkillsPage.jsx`, `AdminEducationPage.jsx`, `AdminCertificationsPage.jsx`, `AdminAchievementsPage.jsx` | Thin wrappers around `ResourceManager` |
 | `adminApi.js` | Wrappers over the shared JSON client |
 | `projectForm.js` | Slug and technology helpers |
-| `AdminUi.jsx` | Shared admin controls and states |
+| `AdminUi.jsx` | Shared admin controls, dialog, pagination, and states |
 
 ### Session handling in the UI
 
@@ -543,6 +560,55 @@ There are no public project-write endpoints.
 
 `/admin/projects` lists real database records with their title, slug, category, technology summary, published state, featured state, order, and row actions, with loading, empty, error, and retry states and a Refresh action (a table on desktop, stacked cards on narrow screens). The create/edit form supports every sensible project field: title, slug (with a "Use title" helper), category, summary, description, comma-separated technologies, repository URL, optional demo URL, illustration, numeric order, and the featured and published checkboxes. Client-side validation mirrors the server for fast feedback, but the server is authoritative and its field errors are shown inline; duplicate slugs produce a clear slug error. Every create, update, publish toggle, and delete refreshes the list from the backend and shows a truthful message, and the public site picks up changes on its next load. Deleting requires an explicit confirmation dialog, and unsaved form changes prompt before the dialog closes.
 
+### Message inbox, content collections, and profile (M7)
+
+Every M7 endpoint sits behind the same `requireAuth` guard as the project routes, and every state-changing request also requires a trusted origin. Identity always comes from the session.
+
+| Method | Path | Purpose | Success |
+| --- | --- | --- | --- |
+| `GET` | `/api/admin/messages` | Paginated inbox | `200` |
+| `PATCH` | `/api/admin/messages/:id` | Mark read or unread | `200` |
+| `DELETE` | `/api/admin/messages/:id` | Delete a message | `204` |
+| `GET` | `/api/admin/skill-groups` | List skill groups | `200` |
+| `POST` | `/api/admin/skill-groups` | Create a skill group | `201` |
+| `PATCH` | `/api/admin/skill-groups/:id` | Update a skill group | `200` |
+| `DELETE` | `/api/admin/skill-groups/:id` | Delete a skill group | `204` |
+| `GET` | `/api/admin/education` | List education entries | `200` |
+| `POST` | `/api/admin/education` | Create an education entry | `201` |
+| `PATCH` | `/api/admin/education/:id` | Update an education entry | `200` |
+| `DELETE` | `/api/admin/education/:id` | Delete an education entry | `204` |
+| `GET` | `/api/admin/certifications` | List certifications | `200` |
+| `POST` | `/api/admin/certifications` | Create a certification | `201` |
+| `PATCH` | `/api/admin/certifications/:id` | Update a certification | `200` |
+| `DELETE` | `/api/admin/certifications/:id` | Delete a certification | `204` |
+| `GET` | `/api/admin/achievements` | List achievements | `200` |
+| `POST` | `/api/admin/achievements` | Create an achievement | `201` |
+| `PATCH` | `/api/admin/achievements/:id` | Update an achievement | `200` |
+| `DELETE` | `/api/admin/achievements/:id` | Delete an achievement | `204` |
+| `GET` | `/api/admin/profile` | Read the profile (or `null`) | `200` |
+| `PUT` | `/api/admin/profile` | Create or update the profile | `200` |
+
+**Inbox.** `GET /api/admin/messages` accepts `read=all|unread|read` (default `all`), `page` (default `1`) and `limit` (default `20`, maximum `50`), and rejects any other query parameter. Messages are newest first (`createdAt` then `_id`, descending). The response is `{ "data": { "messages": [...], "pagination": { "total", "page", "limit", "pages", "hasNext", "hasPrev" } } }`; a page beyond the end is clamped to the last page. Each message exposes only `id`, `name`, `email`, `subject`, `message`, `read`, `createdAt`, and `updatedAt` — the anti-spam `meta.ipHash` and every other internal field stay in the database. `PATCH` accepts exactly one field, `read: true|false`; `DELETE` returns `204`. An unknown id returns `404` (`MESSAGE_NOT_FOUND`), while a malformed id is rejected with `400` before the database is queried. Message bodies and email addresses are never written to logs.
+
+The inbox UI (`/admin/messages`) shows sender, email, subject, date, and a read/unread badge, with All / Unread / Read filters, the total count, and previous/next paging. A message body opens and collapses in place (`View message` / `Hide message`, `aria-expanded`), the read state can be toggled explicitly (`Mark read` / `Mark unread`), and the badge always reflects the stored value. Deleting uses a confirmation dialog that names the sender. Every mutation refreshes the list from the API, so the counts can never drift from the database. Loading, empty, error-with-retry, and success/error messages are all present.
+
+**Ordered collections.** Skill groups, education, certifications, and achievements share one implementation (`createOrderedResource`): a full `save()` so Mongoose validates the document, an explicit projection, and a deterministic sort of `{ order, <label/title/institution> }`. Updates are partial (`PATCH` with `.strict()` and at least one field), creations fill sensible defaults, and unknown fields are rejected. Ordering is plain numeric `order`; the UI's Move up / Move down issues two `PATCH` requests that swap the two `order` values (equal values are separated first), then reloads the list. There is no separate bulk-reorder endpoint.
+
+| Collection | Fields and rules |
+| --- | --- |
+| Skill groups | `label` required, ≤60, unique (`409 LABEL_CONFLICT`); `items` 1–30 non-empty strings, each ≤40; `order` integer 0–100000 |
+| Education | `institution` required ≤200; `qualification` required ≤120; `field` ≤120; `startYear`/`endYear` in 1950–2100 with `endYear >= startYear` (also checked on partial updates); `score` ≤60; `location` ≤160; `order` 0–100000 |
+| Certifications | `title` required ≤200; `issuer` required ≤160; `year` required, 1950–2100; `url` optional HTTP/HTTPS ≤300; `order` 0–100000 |
+| Achievements | `title` required ≤200; `year` required, 1950–2100; `description` ≤1000; `order` 0–100000 |
+
+Skill groups are presented as labels plus a plain list of skills — no ratings, percentages, or progress bars, because the model stores none.
+
+**Profile.** `GET /api/admin/profile` returns `{ "data": { "profile": null } }` when no profile exists. `PUT` is the only write: it merges the submitted fields over the stored document, so a partial body cannot blank fields the administrator did not touch, then upserts on the immutable `key: "profile"`. There is no way to create a second profile, and `key`/`_id` are rejected in the body. `name` (≤120) and `email` must be valid; `headline` (≤200), `intro` (≤1000), `location` (≤160), `github`, `linkedin`, `leetcode` (HTTP/HTTPS, ≤300) and `resumePath` are optional. `bio` is an array of paragraphs (≤20 paragraphs, each ≤2000 characters), edited as individual accessible text areas in the UI rather than raw JSON. The response always reflects the stored document immediately after the write.
+
+**Status codes.** The project table above applies unchanged. `409` now also covers duplicate skill-group labels (`LABEL_CONFLICT`); `404` uses `MESSAGE_NOT_FOUND`, `SKILL_GROUP_NOT_FOUND`, `EDUCATION_NOT_FOUND`, `CERTIFICATION_NOT_FOUND`, or `ACHIEVEMENT_NOT_FOUND` depending on the route.
+
+**Public effect.** Skill-group and profile changes appear in `GET /api/portfolio` immediately. Education, certification, and achievement records are also included in that payload for the public client, but this milestone adds no public section for them (see [Frontend data flow and fallback](#frontend-data-flow-and-fallback)). Contact messages never appear in any public response.
+
 ### Real administrator account
 
 No account is created automatically and there are no default credentials. Create the owner account explicitly (see [Creating the administrator](#creating-the-administrator)) before signing in at `/admin/login`.
@@ -553,6 +619,8 @@ No account is created automatically and there are no default credentials. Create
 - `frontend/src/api/portfolio.js` fetches `/api/portfolio` and normalises the payload into the shapes the existing components already expect: `project.name` from `title`, `project.id` from `slug`, `project.href` from `repoUrl`, `project.number` from `order`, and `skills` from skill groups.
 - `frontend/src/PortfolioContext.jsx` initialises state from `frontend/src/data/portfolio.js`, so first paint never waits for the network. One request runs after mount, is aborted on unmount, and an unmounted component cannot be updated by a late response. There is no retry loop.
 - Non-empty, valid API values replace their bundled counterparts. Empty `headline`/`bio` values do not blank the existing hero or About copy, the bundled `education` line remains because no confirmed education record exists, and invalid URLs or empty strings keep the bundled value. A collection only replaces the bundled list when at least one valid record survives normalisation.
+- The admin pages never treat local state as the source of truth: every create, update, reorder, and delete reloads from the relevant admin endpoint, and the message inbox re-reads the list after each read/unread toggle. Errors keep the previous data visible and offer a retry. The profile form is refilled from the `PUT` response, so a saved edit is never cached from a stale copy.
+- The administrator-editable `headline` and `bio` are stored and returned by `GET /api/portfolio`, but the current public design renders the hero intro and the approved About copy, so those two fields are not yet displayed on the public site. Education, certification, and achievement records are likewise available from the public API but have no public section yet. Adding those sections is a later milestone; M7 deliberately changes no public layout.
 - If the request fails, the bundled content remains on screen. The only diagnostic is one `console.warn` in development; production logs nothing and shows no error state, because the fallback is already the intended public experience.
 - The contact form uses `frontend/src/api/contact.js`, which posts through the shared `postJson` helper in `client.js`. It requires a confirmation message in a successful response; a malformed success response becomes an error, so the form can never show a false success.
 - Contact form state is local to `Contact.jsx`: validation messages sit beside the affected fields, the submit button is disabled while a request is in flight, a synchronous guard prevents double requests, and the `role="status"` region reports progress, success, or failure. Success clears the form; failure preserves every entered value for a retry. The request is aborted on unmount and late responses cannot update an unmounted component.
@@ -631,9 +699,10 @@ The backend suite uses Node's built-in test runner and the real Mongoose model a
 mongodb://127.0.0.1:27017/pradeep_portfolio_m4_test   # contact tests
 mongodb://127.0.0.1:27017/pradeep_portfolio_m5_test   # authentication tests
 mongodb://127.0.0.1:27017/pradeep_portfolio_m6_test   # admin overview and project CRUD tests
+mongodb://127.0.0.1:27017/pradeep_portfolio_m7_test   # admin inbox, content, and profile tests
 ```
 
-Override any of them with `TEST_MONGODB_URI`. Each suite refuses to run unless the database name ends in `_test`; they delete only their own collections (`contactmessages`, `admins`, `sessions`, `projects`, and `skillgroups`) before and after the run. They never connect to, clear, drop, or write to `pradeep_portfolio`. MongoDB must be running.
+Override any of them with `TEST_MONGODB_URI`. Each suite refuses to run unless the database name ends in `_test`; they delete only their own collections (`contactmessages`, `admins`, `sessions`, `projects`, `skillgroups`, `educations`, `certifications`, `achievements`, and `profiles`) before and after the run. They never connect to, clear, drop, or write to `pradeep_portfolio`. MongoDB must be running.
 
 The backend tests cover valid persistence, `read: false`, required fields, email shape and normalisation, subject-optional handling, length limits, unknown-field rejection, honeypot suppression, timing suppression, rate-limit `429` and headers, spoofed `X-Forwarded-For` handling, disconnected-database `503`, write-failure `500` with a log-safety assertion, safe error bodies, invalid JSON, oversized bodies, health, portfolio, and the absence of a public contact-read route.
 
@@ -641,7 +710,9 @@ The M5 authentication tests cover valid login, wrong password, unknown account, 
 
 The M6 admin tests cover unauthenticated rejection of the overview and every project route, the trusted-origin requirement on state-changing routes, the overview aggregate counts from the test database, listing seeded and newly created projects, creation with the stored document verified directly, reading one project, updating title/description/technologies, publishing and unpublishing, the public endpoint hiding unpublished projects while the admin list keeps them, rejection of invalid slugs, URLs, artwork, malformed ObjectIds, duplicate slugs, and forbidden fields, `404` for a nonexistent project, deletion followed by a confirming read, and the unique-slug index.
 
-The frontend suite uses Node's test runner with a mocked `fetch`; it does not render React. It covers the relative endpoint, request payload, success confirmation, validation-field propagation, malformed success responses, network failures, abort handling, and the absence of contact values in console output. It also covers the admin API client (relative admin paths, method and body wiring, `204` handling, field-error propagation, and shape validation that rejects malformed payloads) and the project form helpers (slug generation and technology parsing). React components are additionally exercised in a browser (see below), not by a DOM test runner.
+The M7 admin-content tests cover unauthenticated rejection of every new route, the trusted-origin requirement on every new mutation, inbox pagination metadata, newest-first ordering, the three read filters, the `50` limit cap, strict query rejection, read/unread persistence, strict update bodies, delete plus `404` for missing and malformed ids, the overview unread count following reads and deletes, and the absence of messages from the public payload. They also cover CRUD, ordering, and validation for skill groups (including duplicate labels and the public reflection of changes), education (required fields and the `endYear >= startYear` rule on create and partial update), certifications (including optional URLs), and achievements, plus profile creation and update without a duplicate document, partial-update preservation, URL/email validation, rejection of `key`/`_id`, and reflection through `GET /api/portfolio`. A final group re-checks health, portfolio, contact, and `503` behaviour.
+
+The frontend suite uses Node's test runner with a mocked `fetch`; it does not render React. It covers the relative endpoint, request payload, success confirmation, validation-field propagation, malformed success responses, network failures, abort handling, and the absence of contact values in console output. It also covers the admin API client (relative admin paths, method and body wiring, `204` handling, field-error propagation, and shape validation that rejects malformed payloads), the project form helpers (slug generation and technology parsing), the M7 inbox and collection wrappers (query building, response-shape validation, `PUT` profile updates), and the shared content-form helpers (list parsing, record ↔ form conversion, payload building, numeric/year/URL validation, and the education cross-field rule). React components are additionally exercised in a browser (see below), not by a DOM test runner.
 
 ## Inspecting the database
 
@@ -830,6 +901,22 @@ M6 admin checks were run against the actual application with an isolated `pradee
 - The public site still rendered its hero, `#work`, `#about`, and `#contact` sections, the `resume.pdf` link, the GitHub/LinkedIn/LeetCode links, and the footer; clicking Work set the URL to `/#work`. The `AdminRoot` chunk was **not** loaded on the public page, confirming the lazy split.
 - The admin shell's responsive markup was verified (`lg:flex` desktop sidebar, `lg:hidden` mobile header, `lg:pl-64` content offset) at the available viewport widths. The desktop sidebar rendering at ≥1024px was not visually captured in this environment because the test browser viewport could not be resized; the mobile/tablet layout, the disclosure menu, the identity block, and sign-out were all exercised.
 
+M7 admin checks were run against the actual application with an isolated `pradeep_portfolio_m7_browser_test` database, the existing content seed, and a disposable administrator created through `npm run admin:create`:
+
+- `npm test` passed: **77 backend tests** (M1–M6 plus 23 new M7 tests) and **36 frontend tests** (contact, auth API, admin API, project-form and content-form helpers). The new backend tests ran only against the `_test` database.
+- Signing in landed on `/admin` with live counts (3 projects, 3 published, 4 skill groups, 0 unread messages), and all eight navigation items were present. The session survived a full reload and no credential was written to `localStorage` or `sessionStorage`.
+- `/admin/messages` listed three real contact submissions newest first with sender, email, subject, timestamp, and an Unread badge. Expanding a message revealed its full body and switched the control to `Hide message` (`aria-expanded`). Marking a message read flipped the badge and the button to `Mark unread` and showed a success message. The Unread filter then reported "2 messages" and hid the read one. Deleting opened a confirmation dialog with focus on Cancel, named the sender, and on confirm removed the message (`204`), closed the dialog, and left the remaining count correct. The overview then reported one unread message, matching the database.
+- `/admin/skills` listed the four seeded groups in order with `Order n` badges; Move up was disabled on the first row and Move down on the last. Submitting the empty create form produced the form-level message plus "Enter a label." and "Add at least one skill." inline. Creating a group produced `201`, a success message, and a new row; editing it pre-filled every field, changed the label and order, and moved it to the top; Move down swapped it with the next row (two `PATCH` requests) and the new order was confirmed by re-reading `/api/admin/skill-groups`; deleting it required confirmation and restored the four seeded groups.
+- `/admin/education` showed its empty state and created an entry with institution, qualification, field, and years. Entering an end year earlier than the start year was rejected in the form with "End year cannot be earlier than start year."; correcting it created the entry, which rendered the secondary line `B.Tech · Computer Engineering · 2025–2029`.
+- `/admin/certifications` and `/admin/achievements` showed their empty states and created entries (a certification with an optional `https://` URL, and an achievement with a description); both rendered the expected summaries, confirmed with `201` and a success message.
+- `/admin/profile` loaded the seeded profile with its real name, email, intro, location, links, and resume path. Submitting an invalid GitHub URL produced the inline "Enter a valid http or https URL." error and did not save. Correcting it, adding a headline and a biography paragraph, and saving showed "Your profile was saved."; the values survived a full page reload, and `GET /api/portfolio` returned the new headline and bio. Changing the location to a distinctive value and reloading the public site updated "Based in …" on the contact section, proving the public integration.
+- `/admin/projects` still listed the three database projects with Edit / Unpublish / Delete, so the M6 flow was unaffected by the new pages. Every navigation item resolved to its own lazy chunk.
+- The public site still rendered the hero, `#work` with the three published projects, `#about`, `#contact`, the resume link, and the social links, with no admin link in the public navigation or footer. No `Admin*` chunk was requested on the public page, confirming that dashboard code is still not part of the public bundle.
+- Signing out returned to `/admin/login`; visiting `/admin/messages` while signed out redirected to the login page with no protected content, and `GET /api/auth/me` returned `401`.
+- The isolated database and the temporary administrator were removed afterwards, and the real `pradeep_portfolio` database was re-checked: `admins: 0`, `contactmessages: 0`, `profiles: 1`, `projects: 3`, `skillgroups: 4`, `educations: 0`, `certifications: 0`, `achievements: 0` — unchanged.
+- The test browser viewport was fixed at 1000px (the window could not be resized and no device-emulation tool was available). At that width the desktop table was rendered (`md:block`) and the stacked card list hidden (`md:hidden`), while the desktop sidebar was hidden and the mobile header plus disclosure menu were active (below the `lg` breakpoint). The ≥1024px desktop sidebar markup is unchanged from M6 and was not re-captured visually in this environment.
+- The production build passed: 79 modules, with the public entry chunk unchanged in size and one lazy chunk per admin page (`AdminSkillsPage`, `AdminEducationPage`, `AdminCertificationsPage`, `AdminAchievementsPage`, `AdminMessagesPage`, `AdminProfilePage`, `AdminOverviewPage`, `AdminLoginPage`, plus the shared admin chunk).
+
 ## Routing limitation for `/admin/*`
 
-The administrator area is a client-side route. Vite's development server rewrites unknown paths to `index.html`, so `/admin`, `/admin/login`, and `/admin/projects` work directly during development. A production static host **must** be configured to serve `index.html` for `/admin/*` (a single-page-application fallback), otherwise a direct visit or refresh on a deep admin path returns the host's `404`. This milestone does not include production hosting; the history-fallback rule is documented here so the owner configures it when the site is deployed. The same rule applies to any future client-side route.
+The administrator area is a client-side route. Vite's development server rewrites unknown paths to `index.html`, so `/admin`, `/admin/login`, `/admin/projects`, `/admin/messages`, `/admin/skills`, `/admin/education`, `/admin/certifications`, `/admin/achievements`, and `/admin/profile` work directly during development. A production static host **must** be configured to serve `index.html` for `/admin/*` (a single-page-application fallback), otherwise a direct visit or refresh on a deep admin path returns the host's `404`. This milestone does not include production hosting; the history-fallback rule is documented here so the owner configures it when the site is deployed. The same rule applies to any future client-side route.

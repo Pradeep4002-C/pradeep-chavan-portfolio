@@ -1,3 +1,5 @@
+import Button from '../components/Button.jsx';
+
 /* Small, shared administrator UI pieces. They reuse the portfolio's design
    tokens (paper/surface/ink/muted/line/accent) so the admin area stays visually
    part of the same site without copying a generic dashboard theme. */
@@ -96,6 +98,137 @@ export function Notice({ tone = 'error', children, onDismiss }) {
         </button>
       ) : null}
     </div>
+  );
+}
+
+/** Shared destructive-action button styling (delete, remove, …). */
+export const dangerButtonClass =
+  'inline-flex min-h-[38px] items-center justify-center rounded-full border border-[#e0a9a3] px-3.5 text-[0.84rem] font-semibold text-[#8f1d15] transition-ui hover:border-[#8f1d15] hover:bg-[#fdf1f0] disabled:cursor-not-allowed disabled:opacity-60';
+
+/** Page heading with optional description and action buttons. */
+export function PageHeader({ title, description, children }) {
+  return (
+    <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-[-0.03em] text-ink">{title}</h1>
+        {description ? <p className="mt-1.5 text-sm text-muted">{description}</p> : null}
+      </div>
+      {children ? <div className="flex flex-wrap gap-2">{children}</div> : null}
+    </header>
+  );
+}
+
+/** Neutral empty state for a collection with no records yet. */
+export function EmptyState({ title, message, action }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-line-strong bg-surface p-10 text-center">
+      <h2 className="text-base font-semibold text-ink">{title}</h2>
+      {message ? <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">{message}</p> : null}
+      {action ? <div className="mt-4 flex justify-center">{action}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Modal shell shared by the content dialogs and the delete confirmation. It
+ * closes on backdrop click and Escape, and marks itself busy while a request is
+ * in flight so the dialog cannot be dismissed mid-write.
+ */
+export function Dialog({
+  labelledBy,
+  role = 'dialog',
+  describedBy,
+  busy = false,
+  onClose,
+  children,
+  className = 'max-w-xl',
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/45 px-4 py-8 sm:items-center"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        role={role}
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
+        aria-busy={busy}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && !busy) {
+            event.stopPropagation();
+            onClose();
+          }
+        }}
+        className={`w-full rounded-2xl border border-line bg-surface shadow-xl ${className}`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Accessible confirmation dialog for a destructive action. */
+export function ConfirmDialog({
+  title,
+  message,
+  confirmLabel = 'Delete',
+  busyLabel = 'Deleting…',
+  busy = false,
+  onCancel,
+  onConfirm,
+}) {
+  return (
+    <Dialog role="alertdialog" labelledBy="confirm-heading" describedBy="confirm-message" busy={busy} onClose={onCancel} className="max-w-sm">
+      <div className="p-6">
+        <h2 id="confirm-heading" className="text-lg font-semibold tracking-[-0.02em] text-ink">
+          {title}
+        </h2>
+        <p id="confirm-message" className="mt-2 text-sm text-muted">
+          {message}
+        </p>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button autoFocus type="button" variant="outline" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+          <button type="button" className={dangerButtonClass} onClick={onConfirm} disabled={busy}>
+            {busy ? busyLabel : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+/** Compact previous/next pagination with a page count. */
+export function Pagination({ page, pages, hasPrev, hasNext, onPage, busy = false }) {
+  const total = Math.max(pages, 1);
+  return (
+    <nav className="mt-5 flex items-center justify-between gap-3" aria-label="Pagination">
+      <button
+        type="button"
+        onClick={() => onPage(page - 1)}
+        disabled={!hasPrev || busy}
+        className="inline-flex min-h-[38px] items-center rounded-full border border-line-strong px-3.5 text-sm font-semibold text-ink transition-ui hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Previous
+      </button>
+      <p className="text-sm text-muted" aria-live="polite">
+        Page {page} of {total}
+      </p>
+      <button
+        type="button"
+        onClick={() => onPage(page + 1)}
+        disabled={!hasNext || busy}
+        className="inline-flex min-h-[38px] items-center rounded-full border border-line-strong px-3.5 text-sm font-semibold text-ink transition-ui hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Next
+      </button>
+    </nav>
   );
 }
 

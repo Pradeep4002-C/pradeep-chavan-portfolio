@@ -1,9 +1,16 @@
 import { Router } from 'express';
-import mongoose from 'mongoose';
 import { Project, SkillGroup, ContactMessage } from '../models/index.js';
-import { SafeError } from '../lib/safeError.js';
 import { createRequireAuth } from '../middleware/requireAuth.js';
 import { createRequireTrustedOrigin } from '../middleware/requireTrustedOrigin.js';
+import {
+  internalError,
+  invalidIdResponse,
+  isValidId,
+  notFoundResponse,
+  validationResponse,
+  writeError,
+} from '../lib/adminHttp.js';
+import { createAdminContentRouter } from './adminContent.js';
 import {
   formatProjectIssues,
   projectCreateSchema,
@@ -54,67 +61,14 @@ export function toAdminProject(doc) {
   };
 }
 
-function validationResponse(fields) {
-  return {
-    error: {
-      code: 'VALIDATION_FAILED',
-      message: 'Please check the highlighted fields and try again.',
-      fields,
-    },
-  };
-}
+const PROJECT_NOT_FOUND = notFoundResponse('PROJECT_NOT_FOUND', 'That project does not exist.');
 
-const NOT_FOUND_RESPONSE = Object.freeze({
-  error: {
-    code: 'PROJECT_NOT_FOUND',
-    message: 'That project does not exist.',
-  },
-});
-
-/**
- * Maps a Mongoose write failure onto a safe response. Duplicate slugs and
- * schema validation errors become actionable 4xx responses; anything else is
- * reported as a logged SafeError so no raw driver message can leak.
- */
-function writeError(error, res, next, logCode) {
-  if (error?.code === 11000) {
-    res.status(409).json({
-      error: {
-        code: 'SLUG_CONFLICT',
-        message: 'A project with that slug already exists.',
-        fields: { slug: 'That slug is already in use.' },
-      },
-    });
-    return;
-  }
-
-  if (error?.name === 'ValidationError') {
-    const fields = {};
-    for (const key of Object.keys(error.errors ?? {})) {
-      fields[key] ??= 'Invalid value.';
-    }
-    res.status(400).json(validationResponse(fields));
-    return;
-  }
-
-  next(
-    new SafeError('Something went wrong.', {
-      status: 500,
-      code: 'INTERNAL_ERROR',
-      logCode,
-      cause: error,
-    }),
-  );
-}
-
-function internalError(error, logCode) {
-  return new SafeError('Something went wrong.', {
-    status: 500,
-    code: 'INTERNAL_ERROR',
-    logCode,
-    cause: error,
-  });
-}
+// Duplicate slugs map to a 409 with an actionable field message.
+const PROJECT_WRITE_ERROR = {
+  conflictField: 'slug',
+  conflictCode: 'SLUG_CONFLICT',
+  conflictMessage: 'A project with that slug already exists.',
+};
 
 /**
  * Administrator API. Every route is behind requireAuth; state-changing routes
@@ -179,22 +133,25 @@ export function createAdminRouter({ clientOrigin } = {}) {
       const created = await Project.create(parsed.data);
       res.status(201).json({ data: { project: toAdminProject(created) } });
     } catch (error) {
-      writeError(error, res, next, 'ADMIN_PROJECT_CREATE_FAILED');
+      writeError(error, res, next, {
+        logCode: 'ADMIN_PROJECT_CREATE_FAILED',
+        ...PROJECT_WRITE_ERROR,
+      });
     }
   });
 
   // GET /api/admin/projects/:id
   router.get('/projects/:id', async (req, res, next) => {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) {
-      res.status(400).json(validationResponse({ id: 'Invalid project identifier.' }));
+    if (!isValidId(id)) {
+      res.status(400).json(invalidIdResponse('Invalid project identifier.'));
       return;
     }
 
     try {
       const project = await Project.findById(id).select(ADMIN_PROJECT_FIELDS).lean();
       if (!project) {
-        res.status(404).json(NOT_FOUND_RESPONSE);
+        res.status(404).json(PROJECT_NOT_FOUND);
         return;
       }
 
@@ -207,8 +164,8 @@ export function createAdminRouter({ clientOrigin } = {}) {
   // PATCH /api/admin/projects/:id -> full edits and publish/unpublish.
   router.patch('/projects/:id', requireTrustedOrigin, async (req, res, next) => {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) {
-      res.status(400).json(validationResponse({ id: 'Invalid project identifier.' }));
+    if (!isValidId(id)) {
+      res.status(400).json(invalidIdResponse('Invalid project identifier.'));
       return;
     }
 
@@ -239,28 +196,31 @@ export function createAdminRouter({ clientOrigin } = {}) {
       );
 
       if (!updated) {
-        res.status(404).json(NOT_FOUND_RESPONSE);
+        res.status(404).json(PROJECT_NOT_FOUND);
         return;
       }
 
       res.status(200).json({ data: { project: toAdminProject(updated) } });
     } catch (error) {
-      writeError(error, res, next, 'ADMIN_PROJECT_UPDATE_FAILED');
+      writeError(error, res, next, {
+        logCode: 'ADMIN_PROJECT_UPDATE_FAILED',
+        ...PROJECT_WRITE_ERROR,
+      });
     }
   });
 
   // DELETE /api/admin/projects/:id
   router.delete('/projects/:id', requireTrustedOrigin, async (req, res, next) => {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) {
-      res.status(400).json(validationResponse({ id: 'Invalid project identifier.' }));
+    if (!isValidId(id)) {
+      res.status(400).json(invalidIdResponse('Invalid project identifier.'));
       return;
     }
 
     try {
       const deleted = await Project.findByIdAndDelete(id);
       if (!deleted) {
-        res.status(404).json(NOT_FOUND_RESPONSE);
+        res.status(404).json(PROJECT_NOT_FOUND);
         return;
       }
 
@@ -269,6 +229,10 @@ export function createAdminRouter({ clientOrigin } = {}) {
       next(internalError(error, 'ADMIN_PROJECT_DELETE_FAILED'));
     }
   });
+
+  // Inbox, skill groups, education, certifications, achievements, and profile.
+  // These inherit requireAuth from this router and share requireTrustedOrigin.
+  router.use(createAdminContentRouter({ requireTrustedOrigin }));
 
   return router;
 }

@@ -107,6 +107,10 @@ export function patchJson(path, body, { signal } = {}) {
   return requestJson(path, { method: 'PATCH', body, signal });
 }
 
+export function putJson(path, body, { signal } = {}) {
+  return requestJson(path, { method: 'PUT', body, signal });
+}
+
 /** DELETE returns `null` on 204 No Content and the parsed body otherwise. */
 export function deleteJson(path, { signal } = {}) {
   return requestJson(path, { method: 'DELETE', signal });

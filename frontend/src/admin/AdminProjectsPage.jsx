@@ -2,11 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import Button from '../components/Button.jsx';
 import { deleteProject, fetchProjects, updateProject } from './adminApi.js';
 import { useAdminAuth } from './AdminAuthContext.jsx';
-import { AdminErrorState, AdminLoading, Notice, describeError } from './AdminUi.jsx';
+import { AdminErrorState, AdminLoading, ConfirmDialog, EmptyState, Notice, PageHeader, dangerButtonClass, describeError } from './AdminUi.jsx';
 import ProjectFormDialog from './ProjectFormDialog.jsx';
-
-const dangerButtonClass =
-  'inline-flex min-h-[38px] items-center justify-center rounded-full border border-[#e0a9a3] px-3.5 text-[0.84rem] font-semibold text-[#8f1d15] transition-ui hover:border-[#8f1d15] hover:bg-[#fdf1f0] disabled:cursor-not-allowed disabled:opacity-60';
 
 function TechnologySummary({ items }) {
   if (!Array.isArray(items) || items.length === 0) {
@@ -31,48 +28,6 @@ function StatusBadge({ published }) {
     >
       {published ? 'Published' : 'Draft'}
     </span>
-  );
-}
-
-function ConfirmDialog({ title, message, confirmLabel, busy, onCancel, onConfirm }) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 px-4 py-8"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) {
-          onCancel();
-        }
-      }}
-    >
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirm-heading"
-        aria-describedby="confirm-message"
-        aria-busy={busy}
-        className="w-full max-w-sm rounded-2xl border border-line bg-surface p-6 shadow-xl"
-        onKeyDown={(event) => {
-          if (event.key === 'Escape' && !busy) {
-            onCancel();
-          }
-        }}
-      >
-        <h2 id="confirm-heading" className="text-lg font-semibold tracking-[-0.02em] text-ink">
-          {title}
-        </h2>
-        <p id="confirm-message" className="mt-2 text-sm text-muted">
-          {message}
-        </p>
-        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button autoFocus type="button" variant="outline" onClick={onCancel} disabled={busy}>
-            Cancel
-          </Button>
-          <button type="button" className={dangerButtonClass} onClick={onConfirm} disabled={busy}>
-            {busy ? 'Deleting…' : confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -192,22 +147,17 @@ export default function AdminProjectsPage() {
 
   return (
     <div>
-      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-[-0.03em] text-ink">Projects</h1>
-          <p className="mt-1.5 text-sm text-muted">
-            Create, edit, publish, and delete the projects stored in MongoDB.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={reload} disabled={status === 'loading'}>
-            Refresh
-          </Button>
-          <Button variant="solid" size="sm" onClick={() => setDialog({ mode: 'create' })}>
-            Add project
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        title="Projects"
+        description="Create, edit, publish, and delete the projects stored in MongoDB."
+      >
+        <Button variant="outline" size="sm" onClick={reload} disabled={status === 'loading'}>
+          Refresh
+        </Button>
+        <Button variant="solid" size="sm" onClick={() => setDialog({ mode: 'create' })}>
+          Add project
+        </Button>
+      </PageHeader>
 
       {notice ? (
         <div className="mb-5">
@@ -226,17 +176,15 @@ export default function AdminProjectsPage() {
           onRetry={reload}
         />
       ) : projects.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-line-strong bg-surface p-10 text-center">
-          <h2 className="text-base font-semibold text-ink">No projects yet</h2>
-          <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
-            Add your first project to make it available to the portfolio&rsquo;s work section.
-          </p>
-          <div className="mt-4 flex justify-center">
+        <EmptyState
+          title="No projects yet"
+          message="Add your first project to make it available to the portfolio’s work section."
+          action={
             <Button variant="solid" size="sm" onClick={() => setDialog({ mode: 'create' })}>
               Add project
             </Button>
-          </div>
-        </div>
+          }
+        />
       ) : (
         <>
           {/* Desktop table */}
