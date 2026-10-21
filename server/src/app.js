@@ -4,6 +4,7 @@ import { healthRouter } from './routes/health.js';
 import { portfolioRouter } from './routes/portfolio.js';
 import { contactRouter } from './routes/contact.js';
 import { createAuthRouter } from './routes/auth.js';
+import { createAdminRouter } from './routes/admin.js';
 import { createContactRateLimiter } from './middleware/contactRateLimit.js';
 import { notFound } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -53,10 +54,13 @@ export function createApp({
         loginRateLimit,
       }),
     );
+    // Administrator API: requireAuth guards every route; the trusted-origin
+    // policy is shared with the auth routes for state-changing requests.
+    app.use('/api/admin', createAdminRouter({ clientOrigin: session.clientOrigin }));
   } else {
     // No session configuration: authentication is unavailable. This is a safe
     // failure mode for isolated tests and for a misconfigured direct listener.
-    app.use('/api/auth', (req, res) => {
+    app.use(['/api/auth', '/api/admin'], (req, res) => {
       res.status(503).json({
         error: {
           code: 'SESSION_UNAVAILABLE',

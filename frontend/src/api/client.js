@@ -68,6 +68,11 @@ async function requestJson(path, { method = 'GET', body, signal } = {}) {
     payload = null;
   }
 
+  if (response.status === 204) {
+    // No Content: a successful delete with no body to read.
+    return null;
+  }
+
   if (!response.ok) {
     const message =
       typeof payload?.error?.message === 'string' && payload.error.message.length > 0
@@ -96,4 +101,13 @@ export function getJson(path, { signal } = {}) {
 
 export function postJson(path, body, { signal } = {}) {
   return requestJson(path, { method: 'POST', body, signal });
+}
+
+export function patchJson(path, body, { signal } = {}) {
+  return requestJson(path, { method: 'PATCH', body, signal });
+}
+
+/** DELETE returns `null` on 204 No Content and the parsed body otherwise. */
+export function deleteJson(path, { signal } = {}) {
+  return requestJson(path, { method: 'DELETE', signal });
 }

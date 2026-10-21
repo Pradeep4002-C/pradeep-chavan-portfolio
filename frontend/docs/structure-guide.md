@@ -15,8 +15,23 @@ frontend/
 │   ├── resume.pdf
 │   └── robots.txt
 ├── tests/
-│   └── contact-api.test.js
+│   ├── contact-api.test.js
+│   ├── auth-api.test.js
+│   ├── admin-api.test.js
+│   └── project-form.test.js
 ├── src/
+│   ├── admin/
+│   │   ├── AdminRoot.jsx
+│   │   ├── AdminAuthContext.jsx
+│   │   ├── ProtectedRoute.jsx
+│   │   ├── AdminLayout.jsx
+│   │   ├── AdminLoginPage.jsx
+│   │   ├── AdminOverviewPage.jsx
+│   │   ├── AdminProjectsPage.jsx
+│   │   ├── ProjectFormDialog.jsx
+│   │   ├── AdminUi.jsx
+│   │   ├── adminApi.js
+│   │   └── projectForm.js
 │   ├── api/
 │   │   ├── client.js
 │   │   ├── contact.js
@@ -57,16 +72,32 @@ frontend/
 
 ## `src/`: application source
 
-- **`main.jsx`** — the entry point. It checks for the `#root` element, renders the app with React `StrictMode`, and imports the global stylesheet.
+- **`main.jsx`** — the entry point. It checks for the `#root` element, renders the app with React `StrictMode`, and imports the global stylesheet. It also branches on the URL: when `window.location.pathname` starts with `/admin`, it lazily imports `admin/AdminRoot.jsx` and renders the administrator application instead of the public portfolio. Both branches share the same `#root` element and stylesheet, and the admin code stays in a separate bundle that a public visitor never downloads.
 - **`App.jsx`** — composes the page sections, wraps them in `PortfolioProvider`, and holds the skip link. `<main>` carries `tabindex="-1"` so the skip link moves focus into the content instead of only scrolling. Keep this file focused on page order rather than putting every detail here.
 - **`PortfolioContext.jsx`** — initialises content from `data/portfolio.js`, fetches `/api/portfolio` once after mount, aborts the request on unmount, ignores late responses, and exposes `profile`, `projects`, and `skillGroups` through `usePortfolio()`. Sections never import the API directly.
 - **`index.css`** — the whole global stylesheet. It contains only the Tailwind import, the `@theme` design tokens, a short `@layer base` block, the `transition-ui` utility, and the reduced-motion guard.
 
 ### `src/api/`: the public API boundary
 
-- **`client.js`** — minimal same-origin JSON client. It uses relative `/api` paths, parses JSON safely, normalises network/non-2xx failures into `ApiError` (including safe field messages), preserves abort errors, and never renders a server stack trace.
+- **`client.js`** — minimal same-origin JSON client. It uses relative `/api` paths, parses JSON safely, normalises network/non-2xx failures into `ApiError` (including safe field messages), preserves abort errors, and never renders a server stack trace. It exposes `getJson`, `postJson`, `patchJson`, and `deleteJson`; a `204 No Content` response resolves to `null`, which is what project deletion returns.
 - **`portfolio.js`** — fetches `/api/portfolio`, validates and normalises the payload into the shapes the existing components already expect, and applies the bundled fallback rules for empty or invalid fields.
 - **`contact.js`** — posts `/api/contact` through the shared client and requires a human-readable confirmation in the response; a malformed success response is treated as an error so the form cannot show a false success.
+
+### `src/admin/`: the administrator application
+
+This folder is the whole `/admin` area. It is imported lazily from `main.jsx`, so none of it is in the public bundle. It reuses the shared `Button`, `Container`, and design tokens; it introduces no second UI framework.
+
+- **`AdminRoot.jsx`** — the router and route tree. It renders `AdminAuthProvider`, then `/admin/login` publicly and `/admin` and `/admin/projects` behind `ProtectedRoute` and `AdminLayout`. An unknown `/admin/*` path redirects to `/admin`.
+- **`AdminAuthContext.jsx`** — the session state machine (`loading`, `authenticated`, `unauthenticated`, `error`). It initialises from `GET /api/auth/me`, treats `401` as signed out, treats a network/server failure as an error instead of a false sign-out, and exposes `login`, `logout`, and `markUnauthenticated` for reacting to a `401` from a later protected request.
+- **`ProtectedRoute.jsx`** — shows a loading state while the session is checked, redirects unauthenticated visitors to `/admin/login`, and offers a retry on error. It never flashes protected content.
+- **`AdminLayout.jsx`** — the responsive shell: a fixed sidebar from 1024px up, a disclosure menu below it, the Overview and Projects links, the signed-in identity, and sign-out.
+- **`AdminLoginPage.jsx`** — the labelled email/password form with show/hide password, a distinct message when the server is unreachable, a generic message for bad credentials, and no success claim before the backend confirms.
+- **`AdminOverviewPage.jsx`** — reads `GET /api/admin/overview` and shows the aggregate counts.
+- **`AdminProjectsPage.jsx`** — reads `GET /api/admin/projects`, renders a table on wide screens and stacked cards on narrow ones, and offers Refresh, Add, Edit, Publish/Unpublish, and Delete with a confirmation dialog.
+- **`ProjectFormDialog.jsx`** — the create/edit form for every sensible project field, with inline server field errors mapped back to the right inputs.
+- **`AdminUi.jsx`** — the shared admin controls and states (page header, notices, field, dialog, confirmation, empty/error/loading blocks).
+- **`adminApi.js`** — typed wrappers over the shared client for the overview and project endpoints, validating response shapes so a malformed payload becomes an error rather than broken UI.
+- **`projectForm.js`** — pure helpers: slug generation from a title and comma-separated technology parsing.
 
 ### `src/components/`: reusable building blocks
 

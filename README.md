@@ -12,9 +12,10 @@ A project-first portfolio: a **React + Vite + Tailwind CSS v4** frontend and an 
 | Public portfolio API and frontend integration | Complete (M3) — `GET /api/portfolio`, Vite development proxy, API client, and immediate static fallback |
 | Contact form and message persistence | Complete (M4) — `POST /api/contact`, inline validation, MongoDB storage, honeypot and timing checks, IP rate limiting |
 | Administrator authentication | Complete (M5) — MongoDB-backed sessions, Argon2id login, lockout and login rate limiting, origin checks, reusable auth middleware |
-| Admin dashboard, project CRUD, message inbox, email notifications, production SPA serving | **Not implemented yet** — planned for later milestones |
+| Admin dashboard and project management | Complete (M6) — protected `/admin` React routes, database-backed overview, administrator project CRUD API and UI, publish/unpublish, validation and tests |
+| Message inbox, skill/education/certification/achievement CRUD, profile editing, email notifications, image uploads, production SPA serving | **Not implemented yet** — planned for later milestones |
 
-The React app renders the bundled content immediately, then replaces it with database-backed content when `GET /api/portfolio` succeeds. If the API is unavailable, the bundled content stays visible; the backend is not required merely to view the site. The existing public design, copy, illustrations, and navigation remain in place; M4 adds the contact form inside the existing Contact section and changes no other section.
+The React app renders the bundled content immediately, then replaces it with database-backed content when `GET /api/portfolio` succeeds. If the API is unavailable, the bundled content stays visible; the backend is not required merely to view the site. The existing public design, copy, illustrations, and navigation remain in place; M4 adds the contact form inside the existing Contact section and changes no other section. M6 adds a separate administrator application under `/admin` that is loaded lazily, so the public portfolio bundle and design are unaffected.
 
 ## Repository layout
 
@@ -32,6 +33,7 @@ Portfolio_new/
 │   ├── public/                  # favicon.svg, resume.pdf, robots.txt
 │   ├── docs/                    # Design and structure notes
 │   └── src/                     # components, sections, api, context, data, styles
+│       └── admin/               # Lazy-loaded administrator application (M6)
 └── server/                      # Express API
     ├── package.json
     ├── scripts/
@@ -39,7 +41,8 @@ Portfolio_new/
     │   └── create-admin.js      # Secure first-administrator initialization
     ├── tests/
     │   ├── contact.test.js      # Isolated contact API tests
-    │   └── auth.test.js         # Isolated authentication and session tests
+    │   ├── auth.test.js         # Isolated authentication and session tests
+    │   └── admin.test.js        # Isolated admin overview and project CRUD tests
     └── src/
         ├── index.js             # Startup, shutdown, process-level error handling
         ├── app.js               # Express application (helmet, JSON parsing, routes)
@@ -60,10 +63,12 @@ Portfolio_new/
         │   ├── health.js        # GET /api/health
         │   ├── portfolio.js     # GET /api/portfolio
         │   ├── contact.js       # POST /api/contact
-        │   └── auth.js          # POST /api/auth/login, GET /me, POST /logout
+        │   ├── auth.js          # POST /api/auth/login, GET /me, POST /logout
+        │   └── admin.js         # /api/admin overview and project CRUD (M6)
         ├── validation/
         │   ├── contact.js       # Zod contact schema and anti-spam helpers
-        │   └── auth.js          # Zod login schema
+        │   ├── auth.js          # Zod login schema
+        │   └── project.js       # Zod project create/update schemas
         └── lib/
             ├── admin.js         # Safe admin response shape
             ├── logger.js        # Structured JSON-line logger
@@ -181,6 +186,8 @@ npm run dev:frontend
 ```
 
 Open `http://localhost:5173/`. The page renders the bundled content immediately and requests `GET /api/portfolio` through Vite's development proxy. Vite forwards `/api` to `http://localhost:4000` (configured in `frontend/vite.config.js`), so the browser makes same-origin requests and no CORS setup is required. If the API is not running, the page still shows the bundled content and logs one development-only warning.
+
+The administrator area is served by the same Vite server at `http://localhost:5173/admin/login`. Sign-in requires an administrator created with `npm run admin:create`; there is no registration.
 
 `npm run preview:frontend` serves the production build, but **Vite preview does not apply the development proxy**. Opening the preview without a same-origin API therefore exercises the fallback path, not the proxy path. Production same-origin serving belongs to a later milestone.
 
@@ -431,6 +438,115 @@ State-changing authentication requests (`POST /api/auth/login` and `POST /api/au
 
 No wildcard CORS is configured. In production, serve the API and frontend from the same HTTPS origin; if they must differ, set `CLIENT_ORIGIN` to the exact frontend origin and set `TRUST_PROXY=true` behind the TLS-terminating proxy so `req.protocol` and the session cookie are correct.
 
+## Administrator dashboard and project management
+
+M6 adds the first usable administrator UI and database-backed project management, built on the M5 sessions. **The backend remains the security boundary**; the frontend route guard is a convenience only. Skills, education, certifications, achievements, profile editing, and the contact-message inbox are deliberately **not** part of this milestone.
+
+### Admin routes (frontend)
+
+| Route | Access | Purpose |
+| --- | --- | --- |
+| `/admin/login` | Public | Sign-in form |
+| `/admin` | Protected | Dashboard overview |
+| `/admin/projects` | Protected | Project management |
+
+The administrator application is a second React root, loaded lazily only when `window.location.pathname` starts with `/admin`. The public portfolio bundle therefore contains no router and no dashboard code, and the public navigation, footer, sections, illustrations, and the `/#work`, `/#about`, `/#contact` anchors are unchanged. The admin area has its own responsive shell — a desktop sidebar and a mobile disclosure menu — shows the signed-in administrator's name and email, and offers sign-out. Only Overview and Projects are linked, because those are the only implemented sections.
+
+`frontend/src/admin/` holds the admin application:
+
+| File | Role |
+| --- | --- |
+| `AdminRoot.jsx` | Browser router and route tree |
+| `AdminAuthContext.jsx` | Session state (`loading`, `authenticated`, `unauthenticated`, `error`) |
+| `ProtectedRoute.jsx` | Redirects unauthenticated visitors to `/admin/login` |
+| `AdminLayout.jsx` | Responsive shell, navigation, identity, sign-out |
+| `AdminLoginPage.jsx` | Sign-in form with show/hide password |
+| `AdminOverviewPage.jsx` | Database-backed counts |
+| `AdminProjectsPage.jsx` | Project list and row actions |
+| `ProjectFormDialog.jsx` | Create/edit form |
+| `adminApi.js` | Wrappers over the shared JSON client |
+| `projectForm.js` | Slug and technology helpers |
+| `AdminUi.jsx` | Shared admin controls and states |
+
+### Session handling in the UI
+
+- `AdminAuthContext` initialises by calling `GET /api/auth/me`. A `401` means signed out; a network or server failure becomes an `error` state rather than falsely claiming the administrator was signed out.
+- A `401` from a protected admin request clears the session and returns to the login page. The guard never loops on the login or session-check request.
+- Submission is blocked while a login request is in flight, and success navigates to `/admin` only after the backend confirms. A failed login shows the server's generic message; an unreachable server shows a distinct "could not reach" message.
+- No session identifier, credential, or password is written to local storage, session storage, the URL, or the console. The cookie stays `HttpOnly`.
+
+### Backend endpoints
+
+Every administrator endpoint requires a valid session (`requireAuth`). State-changing requests (`POST`, `PATCH`, `DELETE`) also enforce the trusted-origin policy. Administrator identity always comes from the session, never the request body.
+
+| Method | Path | Purpose | Success |
+| --- | --- | --- | --- |
+| `GET` | `/api/admin/overview` | Aggregate counts | `200` |
+| `GET` | `/api/admin/projects` | Every project, published or not | `200` |
+| `POST` | `/api/admin/projects` | Create a project | `201` |
+| `GET` | `/api/admin/projects/:id` | Read one project | `200` |
+| `PATCH` | `/api/admin/projects/:id` | Update fields, including `published` | `200` |
+| `DELETE` | `/api/admin/projects/:id` | Delete a project | `204` |
+
+**Overview** returns only aggregates — `totalProjects`, `publishedProjects`, `unpublishedProjects`, `totalSkillGroups`, and `unreadContactMessages`. It never returns contact-message bodies or visitor details:
+
+```json
+{
+  "data": {
+    "totalProjects": 3,
+    "publishedProjects": 3,
+    "unpublishedProjects": 0,
+    "totalSkillGroups": 4,
+    "unreadContactMessages": 0
+  }
+}
+```
+
+**Project list** returns `id`, `title`, `slug`, `category`, `summary`, `description`, `technologies`, `repoUrl`, `demoUrl`, `featured`, `artwork`, `order`, `published`, and timestamps. It never returns `_id`, `__v`, or other internal fields, and it includes unpublished projects so they can be managed. It is sorted by `order`, then `title`, then `slug`.
+
+### Project validation
+
+Project writes use the same rules as the model, applied with Zod before the database is touched:
+
+| Field | Rule |
+| --- | --- |
+| `title` | Required, 1–140 characters, trimmed |
+| `slug` | Required, lowercase words separated by single hyphens, ≤120 characters, unique |
+| `category`, `summary`, `description` | Optional, trimmed, ≤80 / ≤300 / ≤2000 characters |
+| `technologies` | Required array of 1–30 non-empty strings, each ≤40 characters |
+| `repoUrl` | Required HTTP/HTTPS URL, ≤300 characters |
+| `demoUrl` | Optional HTTP/HTTPS URL, or empty |
+| `featured`, `published` | Booleans |
+| `artwork` | One of `hostelcare`, `aquapredict`, `expense` (the illustrations that exist) |
+| `order` | Integer, 0–100000 |
+
+Unknown or forbidden fields (`_id`, `__v`, `createdAt`, `updatedAt`) are rejected. `PATCH` changes only the fields that were sent: there are no hidden defaults, so a project's other fields are preserved. Publishing and unpublishing use the same validated update endpoint. The public `GET /api/portfolio` returns only projects with `published: true`; unpublished projects remain visible to the administrator.
+
+### Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Successful read or update |
+| `201` | Project created |
+| `204` | Project deleted |
+| `400` | Validation failed (field messages in `error.fields`) |
+| `401` | No valid session |
+| `403` | Origin not trusted (state-changing requests) |
+| `404` | Project not found |
+| `409` | Slug already exists (`SLUG_CONFLICT`) |
+| `503` | Database or session store unavailable |
+| `500` | Unexpected failure (generic message, no stack trace) |
+
+There are no public project-write endpoints.
+
+### Project management UI
+
+`/admin/projects` lists real database records with their title, slug, category, technology summary, published state, featured state, order, and row actions, with loading, empty, error, and retry states and a Refresh action (a table on desktop, stacked cards on narrow screens). The create/edit form supports every sensible project field: title, slug (with a "Use title" helper), category, summary, description, comma-separated technologies, repository URL, optional demo URL, illustration, numeric order, and the featured and published checkboxes. Client-side validation mirrors the server for fast feedback, but the server is authoritative and its field errors are shown inline; duplicate slugs produce a clear slug error. Every create, update, publish toggle, and delete refreshes the list from the backend and shows a truthful message, and the public site picks up changes on its next load. Deleting requires an explicit confirmation dialog, and unsaved form changes prompt before the dialog closes.
+
+### Real administrator account
+
+No account is created automatically and there are no default credentials. Create the owner account explicitly (see [Creating the administrator](#creating-the-administrator)) before signing in at `/admin/login`.
+
 ## Frontend data flow and fallback
 
 - `frontend/src/api/client.js` is a small JSON client. It uses relative `/api` URLs, parses JSON safely, turns network and non-2xx responses into a safe `ApiError`, and exposes only the server's public error message.
@@ -514,15 +630,18 @@ The backend suite uses Node's built-in test runner and the real Mongoose model a
 ```text
 mongodb://127.0.0.1:27017/pradeep_portfolio_m4_test   # contact tests
 mongodb://127.0.0.1:27017/pradeep_portfolio_m5_test   # authentication tests
+mongodb://127.0.0.1:27017/pradeep_portfolio_m6_test   # admin overview and project CRUD tests
 ```
 
-Override either with `TEST_MONGODB_URI`. Each suite refuses to run unless the database name ends in `_test`; they delete only their own collections (`contactmessages`, `admins`, and `sessions`) before and after the run. They never connect to, clear, drop, or write to `pradeep_portfolio`. MongoDB must be running.
+Override any of them with `TEST_MONGODB_URI`. Each suite refuses to run unless the database name ends in `_test`; they delete only their own collections (`contactmessages`, `admins`, `sessions`, `projects`, and `skillgroups`) before and after the run. They never connect to, clear, drop, or write to `pradeep_portfolio`. MongoDB must be running.
 
 The backend tests cover valid persistence, `read: false`, required fields, email shape and normalisation, subject-optional handling, length limits, unknown-field rejection, honeypot suppression, timing suppression, rate-limit `429` and headers, spoofed `X-Forwarded-For` handling, disconnected-database `503`, write-failure `500` with a log-safety assertion, safe error bodies, invalid JSON, oversized bodies, health, portfolio, and the absence of a public contact-read route.
 
 The M5 authentication tests cover valid login, wrong password, unknown account, locked account, identical public errors for unknown/wrong credentials, safe admin fields, session-id rotation, `lastLoginAt`, MongoDB session persistence, login rate limiting, lockout at the configured threshold, expired-lockout recovery, counter reset on success, `/me` with and without a session, deleted-administrator rejection, logout and cookie clearing, the reusable `requireAuth` middleware, origin validation, cookie attributes, absence of an in-memory session store, and session-secret/password log safety.
 
-The frontend suite uses Node's test runner with a mocked `fetch`; it does not render React. It covers the relative endpoint, request payload, success confirmation, validation-field propagation, malformed success responses, network failures, abort handling, and the absence of contact values in console output. The actual form was additionally exercised in a browser for labels, validation, loading, success, failure, and double-submit behaviour (see below).
+The M6 admin tests cover unauthenticated rejection of the overview and every project route, the trusted-origin requirement on state-changing routes, the overview aggregate counts from the test database, listing seeded and newly created projects, creation with the stored document verified directly, reading one project, updating title/description/technologies, publishing and unpublishing, the public endpoint hiding unpublished projects while the admin list keeps them, rejection of invalid slugs, URLs, artwork, malformed ObjectIds, duplicate slugs, and forbidden fields, `404` for a nonexistent project, deletion followed by a confirming read, and the unique-slug index.
+
+The frontend suite uses Node's test runner with a mocked `fetch`; it does not render React. It covers the relative endpoint, request payload, success confirmation, validation-field propagation, malformed success responses, network failures, abort handling, and the absence of contact values in console output. It also covers the admin API client (relative admin paths, method and body wiring, `204` handling, field-error propagation, and shape validation that rejects malformed payloads) and the project form helpers (slug generation and technology parsing). React components are additionally exercised in a browser (see below), not by a DOM test runner.
 
 ## Inspecting the database
 
@@ -570,6 +689,11 @@ With Atlas, open the cluster in the Atlas UI or connect with your own connection
 | `POST /api/auth/login` returns `429 RATE_LIMITED` | Working as designed: five login requests per IP per fifteen minutes. Wait for the window or restart the development API to clear the in-memory limiter. |
 | A correct password is rejected after several failed attempts | The account lockout is active (ten failed attempts, about fifteen minutes). Wait for the lockout to expire, or inspect and clear `failedAttempts`/`lockedUntil` deliberately if an administrator is locked out. |
 | Login works but the browser does not keep the session behind a proxy | Set `TRUST_PROXY=true` behind exactly one HTTPS reverse proxy and ensure the proxy forwards `X-Forwarded-Proto`; production cookies are `Secure`. |
+| Visiting `/admin` shows the sign-in page | Expected when there is no valid session. Sign in at `/admin/login`; the guard redirects unauthenticated visitors there. |
+| `/admin/projects` shows "No projects yet" although the public site lists projects | Expected until the shared database has projects, or until you add them. The admin list shows the same records as the public site plus unpublished drafts; it never shows sample data. |
+| Creating a project fails with "That slug is already in use" | Slugs are unique. Choose a different slug, or edit the existing project. |
+| An admin request fails immediately after a long idle period | The session expired. The UI returns to `/admin/login`; sign in again. The cookie is `HttpOnly`, so no token exists in browser storage to refresh manually. |
+| Opening `http://localhost:5173/admin/projects` directly in a fresh browser tab works, but a production host returns 404 | Expected limitation: the development server rewrites unknown paths to `index.html`, but a production static host must be configured to serve `index.html` for `/admin/*`. See the routing limitation note. |
 
 ## Frontend
 
@@ -693,3 +817,19 @@ M4 contact checks were run against the actual application with an isolated `prad
 - The page was measured at 320, 360, 375, 390, 414, 480, 540, 640, 768, 820, 1024, 1280, and 1440 pixels wide: no horizontal overflow at any width, the form stayed inside its panel, the submit target stayed 47px tall, the mobile menu appeared below 768px, all three project cards remained, `#work` still rendered zero `<img>` elements, and the resume link still returned `200 application/pdf`.
 - The production build passed: **46 modules**, JS `index-CwX6RrHn.js` (184.36 kB), CSS `index-Cl1eassL.css` (34.89 kB). The CSS hash changed because the contact form added styles; the existing public sections were not redesigned.
 - Lighthouse against the production preview at `#contact` returned **100** for Accessibility, Best Practices, and SEO with no reported failures.
+
+M6 admin checks were run against the actual application with an isolated `pradeep_portfolio_m6_browser_test` database and a disposable administrator created through `npm run admin:create`:
+
+- `npm test` passed: **54 backend tests** (M1–M5 plus 23 new admin tests) and **20 frontend tests** (contact, auth API, admin API, and project-form helpers). The admin tests ran only against the `_test` database.
+- A direct API run against the running server confirmed: unauthenticated admin requests → `401`; a foreign `Origin` → `403`; login → `200` with an `HttpOnly` cookie; create → `201`; the created project appeared in the public portfolio; read by id → `200`; unpublish → the public portfolio excluded it while the admin list kept it; duplicate slug → `409 SLUG_CONFLICT`; invalid artwork → `400` with an `artwork` field error; update → `200`; delete → `204` followed by `404`; logout → `204` and the next admin request → `401`.
+- In the browser, `/admin/login` rendered labelled email and password fields (proper `<label for>` associations), a show/hide password control, and a visible focus ring. A wrong password stayed on the login page with the generic message "Invalid email or password." and disclosed nothing about whether the account exists.
+- Signing in landed on `/admin` (Overview) with real counts from the database. The session survived a full page reload, and `GET /api/auth/me` returned `200` afterwards.
+- `/admin/projects` listed database records (title, slug, category, technology summary, published state, featured state, order). The create form carried every field, rejected an empty submission with a form-level message plus four inline field errors marked `aria-invalid`, generated the slug `hostelcare-portal` from the title, and created the project, which then appeared in the admin list and in `/api/portfolio`.
+- The row actions were exercised end to end: unpublish (the project left the public portfolio, stayed in the admin list, and the button changed to Publish), republish (the public portfolio included it again), edit (the updated title persisted and reached `/api/portfolio`), and delete (a confirmation dialog appeared, Cancel preserved the project, and confirming removed it with a `204`, an empty state, and an empty public portfolio).
+- Signing out returned to `/admin/login` with `GET /api/auth/me` → `401` and **no entries** in `localStorage` or `sessionStorage`. Visiting `/admin/projects` while signed out redirected to `/admin/login`, and no protected content was shown.
+- The public site still rendered its hero, `#work`, `#about`, and `#contact` sections, the `resume.pdf` link, the GitHub/LinkedIn/LeetCode links, and the footer; clicking Work set the URL to `/#work`. The `AdminRoot` chunk was **not** loaded on the public page, confirming the lazy split.
+- The admin shell's responsive markup was verified (`lg:flex` desktop sidebar, `lg:hidden` mobile header, `lg:pl-64` content offset) at the available viewport widths. The desktop sidebar rendering at ≥1024px was not visually captured in this environment because the test browser viewport could not be resized; the mobile/tablet layout, the disclosure menu, the identity block, and sign-out were all exercised.
+
+## Routing limitation for `/admin/*`
+
+The administrator area is a client-side route. Vite's development server rewrites unknown paths to `index.html`, so `/admin`, `/admin/login`, and `/admin/projects` work directly during development. A production static host **must** be configured to serve `index.html` for `/admin/*` (a single-page-application fallback), otherwise a direct visit or refresh on a deep admin path returns the host's `404`. This milestone does not include production hosting; the history-fallback rule is documented here so the owner configures it when the site is deployed. The same rule applies to any future client-side route.
