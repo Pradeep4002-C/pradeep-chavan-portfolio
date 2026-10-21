@@ -11,7 +11,7 @@ const contactMessageSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      maxlength: 120,
+      maxlength: 80,
     },
     email: {
       type: String,
@@ -24,7 +24,7 @@ const contactMessageSchema = new mongoose.Schema(
     subject: {
       type: String,
       trim: true,
-      maxlength: 160,
+      maxlength: 120,
       default: '',
     },
     message: {

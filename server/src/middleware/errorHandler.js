@@ -47,11 +47,20 @@ export function errorHandler(err, req, res, next) {
   };
 
   if (status >= 500) {
-    logger.error('Unhandled request error', {
-      ...context,
-      error: err.message,
-      stack: err.stack,
-    });
+    if (err.safe === true) {
+      // Routes use SafeError to supply a safe diagnostic category instead of
+      // a raw message that could contain submitted personal data.
+      logger.error('Unhandled request error', {
+        ...context,
+        errorCode: err.logCode ?? code,
+      });
+    } else {
+      logger.error('Unhandled request error', {
+        ...context,
+        error: err.message,
+        stack: err.stack,
+      });
+    }
   } else {
     logger.warn('Request rejected', context);
   }

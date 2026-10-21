@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDatabaseStatus } from '../config/db.js';
 import { ContactMessage } from '../models/ContactMessage.js';
+import { SafeError } from '../lib/safeError.js';
 import {
   contactSchema,
   formatContactIssues,
@@ -74,8 +75,17 @@ contactRouter.post('/', async (req, res, next) => {
       read: false,
     });
   } catch (error) {
-    // The central handler logs the error server-side and returns a generic 500.
-    next(error);
+    // Use a SafeError so the central handler logs only the operational
+    // category. A raw Mongoose/driver message or stack could otherwise echo a
+    // visitor's name, email address, or message content into application logs.
+    next(
+      new SafeError('Something went wrong.', {
+        status: 500,
+        code: 'INTERNAL_ERROR',
+        logCode: 'CONTACT_PERSISTENCE_FAILED',
+        cause: error,
+      }),
+    );
     return;
   }
 

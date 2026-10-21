@@ -294,19 +294,34 @@ test('returns 503 without saving when MongoDB is disconnected', async (t) => {
   assert.equal(await ContactMessage.countDocuments(), 0);
 });
 
-test('returns a generic 500 when the database write fails and leaks no content', async (t) => {
+test('returns a generic 500 when the database write fails and logs no visitor content', async (t) => {
   const server = await startServer();
   t.after(server.close);
 
   const marker = 'PRIVATE-WRITE-FAILURE-MESSAGE';
+  const nameMarker = 'PRIVATE-WRITE-FAILURE-NAME';
+  const emailMarker = 'private.write.failure@example.com';
   const originalCreate = ContactMessage.create;
   ContactMessage.create = async () => {
-    throw new Error('simulated write failure');
+    throw new Error(
+      `simulated write failure for ${nameMarker} <${emailMarker}> "${marker}"`,
+    );
+  };
+
+  const stderrWrite = process.stderr.write;
+  const logChunks = [];
+  process.stderr.write = function captureStderr(chunk, ...rest) {
+    logChunks.push(String(chunk));
+    return stderrWrite.call(this, chunk, ...rest);
   };
 
   try {
     const { response, text, json } = await send(server.base, CONTACT_PATH, {
-      body: validPayload({ message: `${marker} is long enough to pass validation.` }),
+      body: validPayload({
+        name: nameMarker,
+        email: emailMarker,
+        message: `${marker} is long enough to pass validation.`,
+      }),
     });
 
     assert.equal(response.status, 500);
@@ -316,8 +331,16 @@ test('returns a generic 500 when the database write fails and leaks no content',
     assert.equal(text.includes(marker), false);
     assert.equal(text.includes('simulated write failure'), false);
   } finally {
+    process.stderr.write = stderrWrite;
     ContactMessage.create = originalCreate;
   }
+
+  const logOutput = logChunks.join('');
+  assert.equal(logOutput.includes(marker), false, 'message content reached the logs');
+  assert.equal(logOutput.includes(nameMarker), false, 'visitor name reached the logs');
+  assert.equal(logOutput.includes(emailMarker), false, 'visitor email reached the logs');
+  assert.equal(logOutput.includes('simulated write failure'), false, 'raw error reached the logs');
+  assert.match(logOutput, /CONTACT_PERSISTENCE_FAILED/, 'safe diagnostic category is missing');
 
   assert.equal(await ContactMessage.countDocuments(), 0);
 });

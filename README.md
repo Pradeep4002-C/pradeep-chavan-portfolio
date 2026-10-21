@@ -11,7 +11,8 @@ A project-first portfolio: a **React + Vite + Tailwind CSS v4** frontend and an 
 | Database models and seeding | Complete (M2) — eight Mongoose models, indexes, idempotent content seed, secure administrator creation |
 | Public portfolio API and frontend integration | Complete (M3) — `GET /api/portfolio`, Vite development proxy, API client, and immediate static fallback |
 | Contact form and message persistence | Complete (M4) — `POST /api/contact`, inline validation, MongoDB storage, honeypot and timing checks, IP rate limiting |
-| Authentication, admin dashboard, project CRUD, message inbox, email notifications, production SPA serving | **Not implemented yet** — planned for later milestones |
+| Administrator authentication | Complete (M5) — MongoDB-backed sessions, Argon2id login, lockout and login rate limiting, origin checks, reusable auth middleware |
+| Admin dashboard, project CRUD, message inbox, email notifications, production SPA serving | **Not implemented yet** — planned for later milestones |
 
 The React app renders the bundled content immediately, then replaces it with database-backed content when `GET /api/portfolio` succeeds. If the API is unavailable, the bundled content stays visible; the backend is not required merely to view the site. The existing public design, copy, illustrations, and navigation remain in place; M4 adds the contact form inside the existing Contact section and changes no other section.
 
@@ -37,26 +38,37 @@ Portfolio_new/
     │   ├── seed-content.js      # Idempotent portfolio content seed
     │   └── create-admin.js      # Secure first-administrator initialization
     ├── tests/
-    │   └── contact.test.js      # Isolated contact API tests
+    │   ├── contact.test.js      # Isolated contact API tests
+    │   └── auth.test.js         # Isolated authentication and session tests
     └── src/
         ├── index.js             # Startup, shutdown, process-level error handling
         ├── app.js               # Express application (helmet, JSON parsing, routes)
         ├── config/
         │   ├── env.js           # dotenv + Zod validation
-        │   └── db.js            # Mongoose connection and status
+        │   ├── db.js            # Mongoose connection and status
+        │   ├── session.js       # MongoDB session store, cookie, helpers
+        │   └── auth.js          # Lockout policy constants
         ├── middleware/
         │   ├── notFound.js      # JSON 404 for unknown routes
-        │   ├── errorHandler.js  # Central error handler
-        │   └── contactRateLimit.js # Five-per-hour contact limiter
+        │   ├── errorHandler.js  # Central error handler (SafeError aware)
+        │   ├── contactRateLimit.js # Five-per-hour contact limiter
+        │   ├── authRateLimit.js    # Five-per-15-minute login limiter
+        │   ├── requireAuth.js      # Reusable admin session guard
+        │   └── requireTrustedOrigin.js # Origin validation for auth POSTs
         ├── models/              # Eight Mongoose models + ensureModelIndexes()
         ├── routes/
         │   ├── health.js        # GET /api/health
         │   ├── portfolio.js     # GET /api/portfolio
-        │   └── contact.js       # POST /api/contact
+        │   ├── contact.js       # POST /api/contact
+        │   └── auth.js          # POST /api/auth/login, GET /me, POST /logout
         ├── validation/
-        │   └── contact.js       # Zod contact schema and anti-spam helpers
+        │   ├── contact.js       # Zod contact schema and anti-spam helpers
+        │   └── auth.js          # Zod login schema
         └── lib/
+            ├── admin.js         # Safe admin response shape
             ├── logger.js        # Structured JSON-line logger
+            ├── password.js      # Shared Argon2id helpers
+            ├── safeError.js     # Log-safe operational error category
             └── validators.js    # Shared email and http(s) URL checks
 ```
 
@@ -82,8 +94,18 @@ The frontend keeps its existing entry points, sections, illustrations, and styli
 | --- | --- | --- | --- |
 | `NODE_ENV` | No | `development` | `development`, `production`, or `test` |
 | `PORT` | No | `4000` | Port the Express API listens on |
-| `TRUST_PROXY` | No | `false` | Set `true` only behind exactly one trusted reverse proxy; required for correct IP rate limiting in that deployment |
+| `TRUST_PROXY` | No | `false` | Set `true` only behind exactly one trusted reverse proxy; required for correct client IPs and HTTPS cookies in that deployment |
 | `MONGODB_URI` | **Yes** | — | MongoDB connection string |
+| `SESSION_SECRET` | **Yes** | — | Random secret (at least 32 bytes) used to sign the administrator session cookie |
+| `CLIENT_ORIGIN` | No | `http://localhost:5173` in development; empty in production | Trusted browser origin for state-changing authentication requests, in addition to same-origin |
+
+Generate `SESSION_SECRET` with a cryptographically secure random source and never commit it:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(48).toString('base64'))"
+```
+
+The copied placeholder in `.env.example` is deliberately rejected by validation, so a real value must be set. The server never logs the secret.
 
 `TRUST_PROXY` is deliberately off by default. When it is `false`, Express uses the socket address for `req.ip`; enabling it behind a proxy would otherwise let a caller spoof `X-Forwarded-For` and bypass the contact limiter. For a single-proxy host such as Render, set `TRUST_PROXY=true` so the limiter sees the visitor's IP. Do not enable it when the API is directly exposed to the internet.
 
@@ -191,7 +213,7 @@ If the connection drops after startup, the same endpoint returns `503 Service Un
   ```
 
 - Malformed JSON returns `400 INVALID_JSON`; an oversized body returns `413 PAYLOAD_TOO_LARGE`.
-- Unexpected failures return `500 INTERNAL_ERROR` with a generic message. Stack traces are logged server-side and are never sent to a client, in development or production.
+- Unexpected failures return `500 INTERNAL_ERROR` with a generic message. Stack traces are logged server-side and are never sent to a client, in development or production. Routes that can handle visitor or credential data (contact persistence, login, logout) pass a `SafeError` so only a safe diagnostic category is logged, never a raw database message that could contain submitted content.
 - Helmet sets security headers on every response; `X-Powered-By` is disabled.
 - There is **no SPA fallback and no CORS configuration**. Development uses Vite's same-origin proxy; serving the production frontend from Express belongs to a later milestone.
 
@@ -329,6 +351,86 @@ If MongoDB is disconnected, the endpoint returns `503 DATABASE_UNAVAILABLE` with
 
 There is **no public message-read endpoint**. Contact messages are not included in `GET /api/portfolio` or any other public route; an admin inbox belongs to a later milestone. **Email notifications are not implemented in M4** — messages are stored only in MongoDB and no external email provider is called.
 
+## Administrator authentication
+
+M5 adds cookie-based administrator sessions. There is still **no dashboard, no CRUD, and no message inbox**; those belong to later milestones. All authentication is enforced by the backend independently of any frontend route guard.
+
+### Session architecture
+
+- Sessions are stored in MongoDB in the `sessions` collection through `connect-mongo`, reusing the Mongoose connection's MongoClient. The Express `MemoryStore` is never used, in development or production.
+- `resave: false` and `saveUninitialized: false`; an anonymous request never creates a stored session.
+- The session lifetime is approximately **8 hours**. The cookie carries the same maximum age, so an expired cookie no longer authorizes a request; the store also expires the record.
+- A successful login calls `session.regenerate()` first, then stores only the administrator's `_id` in the session. The session id in the browser cookie therefore changes on every login, which prevents session fixation.
+- Logout destroys the server-side session and clears the cookie with the same `HttpOnly`, `SameSite=Lax`, `Secure` (production), and `Path=/` attributes used to set it. No `Domain` attribute is used.
+- Session responses never include the session id, session data, password hash, lockout counters, or internal database fields.
+
+Cookie configuration:
+
+| Attribute | Value |
+| --- | --- |
+| `httpOnly` | `true` |
+| `sameSite` | `Lax` |
+| `secure` | `true` when `NODE_ENV=production` (requires HTTPS) |
+| `path` | `/` |
+| `maxAge` | 8 hours |
+| `domain` | not set (host-only cookie) |
+
+### Endpoints
+
+```text
+POST /api/auth/login
+GET  /api/auth/me
+POST /api/auth/logout
+```
+
+**Login** accepts only JSON:
+
+```json
+{ "email": "owner@example.com", "password": "provided by the administrator" }
+```
+
+On success — `200 OK`:
+
+```json
+{
+  "data": {
+    "admin": { "id": "…", "email": "owner@example.com", "name": "Owner Name" }
+  }
+}
+```
+
+Invalid credentials, an unknown email, and a locked account all return the same response:
+
+```json
+{ "error": { "code": "INVALID_CREDENTIALS", "message": "Invalid email or password." } }
+```
+
+The response deliberately does not reveal whether an account exists. The handler performs one Argon2id verification against a stored hash or a fixed dummy hash so unknown-account and wrong-password timing stay comparable. Passwords and request bodies are never logged.
+
+**Current administrator** (`GET /api/auth/me`) returns the same safe admin shape when the session is valid. Without a session it returns `401 UNAUTHENTICATED`. If the administrator referenced by the session no longer exists, the session is destroyed and `401` is returned. The reusable `requireAuth` middleware is ready for the M6 dashboard and CRUD routes; it is tested with an isolated probe route, not a production endpoint.
+
+**Logout** (`POST /api/auth/logout`) returns `204 No Content`, destroys the server-side session, and clears the cookie. Logging out without an active session is also `204`. If the server session cannot be destroyed, the endpoint returns a safe `500` rather than claiming the session was invalidated.
+
+### Login rate limiting and account lockout
+
+Login protection is layered:
+
+- **IP limit:** five login requests per IP per fifteen minutes, with JSON `429 RATE_LIMITED` and standard rate-limit headers.
+- **Account lockout:** ten failed credential attempts set `lockedUntil` about fifteen minutes into the future. The counter and lockout are updated atomically on the server, and the counter resets after a successful login or once the lockout window has expired. Accounts are never permanently locked by ordinary login failures.
+
+`TRUST_PROXY` must be set consistently with the contact limiter. When it is `false` (the default), Express uses the socket address and ignores `X-Forwarded-For`. Set it to `true` only behind exactly one trusted reverse proxy. The login limiter can be given test-specific limits without changing the production defaults.
+
+### Origin protection
+
+State-changing authentication requests (`POST /api/auth/login` and `POST /api/auth/logout`) validate the `Origin` header:
+
+- an `Origin` matching the request's own scheme and host is allowed (same-origin);
+- an `Origin` matching `CLIENT_ORIGIN` is allowed (the Vite dev server origin by default);
+- a request with no `Origin` is allowed for non-browser clients — the JSON-only body and `SameSite=Lax` cookie still apply;
+- any other `Origin` is rejected with `403 FORBIDDEN_ORIGIN`.
+
+No wildcard CORS is configured. In production, serve the API and frontend from the same HTTPS origin; if they must differ, set `CLIENT_ORIGIN` to the exact frontend origin and set `TRUST_PROXY=true` behind the TLS-terminating proxy so `req.protocol` and the session cookie are correct.
+
 ## Frontend data flow and fallback
 
 - `frontend/src/api/client.js` is a small JSON client. It uses relative `/api` URLs, parses JSON safely, turns network and non-2xx responses into a safe `ApiError`, and exposes only the server's public error message.
@@ -390,7 +492,9 @@ npm run admin:create -- --email owner@example.com --name "Owner Name"
 
 The script prompts for the password twice with hidden input. It requires **at least 12 characters**, hashes with **Argon2id**, stores only the hash, and refuses to create or overwrite an account whose email already exists. It never prints the password or the hash, and the password cannot be supplied as a command-line argument. For scripted local use, two password lines may be piped on stdin (see `npm run admin:create -- --help`), which is useful for testing against a disposable database.
 
-`.env` stays untracked; `.env.example` contains placeholders only.
+The administrator is never created automatically at application startup. The owner must run this script explicitly after configuring a real `MONGODB_URI` and `SESSION_SECRET`. Keep the password in a password manager; the API only stores the Argon2id hash.
+
+`.env` stays untracked; `.env.example` contains placeholders only (including a placeholder session secret that validation rejects).
 
 ## Running tests
 
@@ -405,15 +509,18 @@ npm run test:server
 npm run test:frontend
 ```
 
-The backend suite uses Node's built-in test runner and the real Mongoose model against an **isolated** database. By default it connects to:
+The backend suite uses Node's built-in test runner and the real Mongoose model against **isolated** databases. By default it connects to:
 
 ```text
-mongodb://127.0.0.1:27017/pradeep_portfolio_m4_test
+mongodb://127.0.0.1:27017/pradeep_portfolio_m4_test   # contact tests
+mongodb://127.0.0.1:27017/pradeep_portfolio_m5_test   # authentication tests
 ```
 
-Override it with `TEST_MONGODB_URI`. The suite refuses to run unless the database name ends in `_test`; it deletes only `contactmessages` documents in that database before and after the run. It never connects to, clears, drops, or writes to `pradeep_portfolio`. MongoDB must be running.
+Override either with `TEST_MONGODB_URI`. Each suite refuses to run unless the database name ends in `_test`; they delete only their own collections (`contactmessages`, `admins`, and `sessions`) before and after the run. They never connect to, clear, drop, or write to `pradeep_portfolio`. MongoDB must be running.
 
-The backend tests cover valid persistence, `read: false`, required fields, email shape and normalisation, subject-optional handling, length limits, unknown-field rejection, honeypot suppression, timing suppression, rate-limit `429` and headers, spoofed `X-Forwarded-For` handling, disconnected-database `503`, write-failure `500`, safe error bodies, invalid JSON, oversized bodies, health, portfolio, and the absence of a public contact-read route.
+The backend tests cover valid persistence, `read: false`, required fields, email shape and normalisation, subject-optional handling, length limits, unknown-field rejection, honeypot suppression, timing suppression, rate-limit `429` and headers, spoofed `X-Forwarded-For` handling, disconnected-database `503`, write-failure `500` with a log-safety assertion, safe error bodies, invalid JSON, oversized bodies, health, portfolio, and the absence of a public contact-read route.
+
+The M5 authentication tests cover valid login, wrong password, unknown account, locked account, identical public errors for unknown/wrong credentials, safe admin fields, session-id rotation, `lastLoginAt`, MongoDB session persistence, login rate limiting, lockout at the configured threshold, expired-lockout recovery, counter reset on success, `/me` with and without a session, deleted-administrator rejection, logout and cookie clearing, the reusable `requireAuth` middleware, origin validation, cookie attributes, absence of an in-memory session store, and session-secret/password log safety.
 
 The frontend suite uses Node's test runner with a mocked `fetch`; it does not render React. It covers the relative endpoint, request payload, success confirmation, validation-field propagation, malformed success responses, network failures, abort handling, and the absence of contact values in console output. The actual form was additionally exercised in a browser for labels, validation, loading, success, failure, and double-submit behaviour (see below).
 
@@ -429,6 +536,7 @@ db.profiles.findOne()
 db.skillgroups.find().sort({ order: 1 }).pretty()
 db.admins.countDocuments()
 db.contactmessages.find().sort({ createdAt: -1 })
+db.sessions.countDocuments()
 ```
 
 With Atlas, open the cluster in the Atlas UI or connect with your own connection string. Never paste a credential-bearing URI into documentation, screenshots, or logs.
@@ -456,6 +564,12 @@ With Atlas, open the cluster in the Atlas UI or connect with your own connection
 | `E11000 duplicate key` while seeding | A document already uses that unique identifier (profile key, project slug, or skill-group label). The seed skips it and leaves it untouched; inspect it before changing anything. |
 | `An administrator with that email already exists` | Working as designed. The script never replaces an account or its password; use a different email or manage the existing account deliberately. |
 | Seeded content looks stale after editing `portfolio.js` | Seeding only creates missing records. Update already-seeded records through the admin workflow once it exists, or edit them in MongoDB deliberately. |
+| `Invalid environment configuration` with `SESSION_SECRET` | `.env` is missing a session secret, the value is shorter than 32 characters, or the `.env.example` placeholder was not replaced. Generate a random value with the command in the environment table. |
+| The API exits before listening after a valid `MONGODB_URI` | The session store or session configuration could not be created. Check the JSON log line; the API deliberately refuses to listen without valid authentication configuration. |
+| `POST /api/auth/login` returns `403 FORBIDDEN_ORIGIN` | The `Origin` header is neither same-origin nor `CLIENT_ORIGIN`. Add the exact frontend origin to `CLIENT_ORIGIN` or serve both from one origin. |
+| `POST /api/auth/login` returns `429 RATE_LIMITED` | Working as designed: five login requests per IP per fifteen minutes. Wait for the window or restart the development API to clear the in-memory limiter. |
+| A correct password is rejected after several failed attempts | The account lockout is active (ten failed attempts, about fifteen minutes). Wait for the lockout to expire, or inspect and clear `failedAttempts`/`lockedUntil` deliberately if an administrator is locked out. |
+| Login works but the browser does not keep the session behind a proxy | Set `TRUST_PROXY=true` behind exactly one HTTPS reverse proxy and ensure the proxy forwards `X-Forwarded-Proto`; production cookies are `Secure`. |
 
 ## Frontend
 
@@ -536,12 +650,15 @@ Project repository destinations are sourced from the hyperlinks in the supplied 
 - A filled honeypot or a submission timestamp younger than two seconds is accepted with the same `201` body as a real message but is not stored. The frontend hides the honeypot off-screen, removes it from the accessibility tree, and keeps it out of the tab order. These checks are layered with a five-per-hour IP limiter; they are not presented as complete spam prevention.
 - The contact limiter uses an in-memory store and `TRUST_PROXY` is opt-in, so a deployment must explicitly declare that it sits behind one trusted proxy. This avoids both a shared-proxy IP bucket and blind trust of `X-Forwarded-For`.
 - Contact messages are stored in MongoDB with `read: false` and are never exposed by a public read route. Email notification is intentionally deferred; a database outage returns `503` rather than a false success.
+- Administrator authentication uses a MongoDB session store, an 8-hour host-only `HttpOnly`/`SameSite=Lax` cookie (`Secure` in production), and session-id rotation on login. The same `requireAuth` middleware will guard the M6 dashboard and CRUD routes; a frontend route guard is never treated as security.
+- Login failures are deliberately indistinguishable: unknown email, wrong password, and lockout return the same `401 INVALID_CREDENTIALS` body, and one Argon2id verification runs in every path so timing does not reveal account existence. Ten failures lock an account for about fifteen minutes, reset by a successful login or an expired window.
+- Authentication POSTs validate `Origin` against the request origin and `CLIENT_ORIGIN`; absent `Origin` is allowed for non-browser clients, and there is no wildcard CORS. `TRUST_PROXY` remains opt-in for exactly one trusted proxy so both the rate limiters and the production cookie see the real deployment.
 - The greeting types itself once, then stays visible. With `prefers-reduced-motion: reduce` it appears instantly with no cursor and no typing.
 - Interface icons are inline SVG, never emoji or text glyphs. The arrow characters (`→`, `↗`, `↑`) were replaced because Windows renders some of them (such as `↗`, U+2197) with emoji presentation, which is why the resume button once showed a blue emoji tile.
 - The resume button is labelled "Download resume" and downloads the PDF (`download` attribute on a same-origin link), so the label matches the action.
 - The header brand is a "PC" monogram beside the name; the letters are generated content so they stay out of the link's accessible name.
 - Nothing in the showcase stands in for an application screen: there is no screenshot, no placeholder box, no stock imagery, no imitation window, and no fabricated metric. The drawings are labelled diagrams, and each entry ends at one real repository link.
-- The public site renders the bundled portfolio immediately, then hydrates from `GET /api/portfolio`; a failed request leaves the bundled content untouched. Authentication, the admin dashboard, CRUD endpoints, an admin message inbox, email notifications, image uploads, and production same-origin SPA serving arrive later.
+- The public site renders the bundled portfolio immediately, then hydrates from `GET /api/portfolio`; a failed request leaves the bundled content untouched. Administrator authentication exists as an API-only milestone; the admin dashboard, CRUD endpoints, an admin message inbox, email notifications, image uploads, and production same-origin SPA serving arrive later.
 
 ## Accessibility and quality checks
 

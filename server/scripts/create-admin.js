@@ -1,19 +1,13 @@
 import readline from 'node:readline';
 import { Writable } from 'node:stream';
-import argon2 from 'argon2';
 import { connectDatabase, disconnectDatabase } from '../src/config/db.js';
 import { loadEnv } from '../src/config/env.js';
 import { logger } from '../src/lib/logger.js';
+import { hashPassword } from '../src/lib/password.js';
 import { EMAIL_PATTERN } from '../src/lib/validators.js';
 import { Admin, ensureModelIndexes } from '../src/models/index.js';
 
 const MIN_PASSWORD_LENGTH = 12;
-const PASSWORD_HASH_OPTIONS = {
-  type: argon2.argon2id,
-  memoryCost: 19456, // 19 MiB, OWASP baseline
-  timeCost: 2,
-  parallelism: 1,
-};
 
 function printUsage() {
   process.stdout.write(
@@ -202,7 +196,7 @@ async function createAdministrator() {
         throw new Error('An administrator with that email already exists.');
       }
 
-      const passwordHash = await argon2.hash(password, PASSWORD_HASH_OPTIONS);
+      const passwordHash = await hashPassword(password);
       await Admin.create({ email, name, passwordHash });
 
       // Deliberately excludes the password and the hash.

@@ -1,6 +1,7 @@
 import { createApp } from './app.js';
 import { ConfigError, ENV_FILE_PATH, loadEnv } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/db.js';
+import { createSessionMiddleware, createSessionStore } from './config/session.js';
 import { logger } from './lib/logger.js';
 
 let httpServer = null;
@@ -84,7 +85,35 @@ async function start() {
     return;
   }
 
-  const app = createApp({ trustProxy: config.trustProxy });
+  let app;
+
+  try {
+    // Reuse the established Mongoose connection/client for the session store.
+    // Creating this before listen guarantees a bad session secret or store
+    // fails startup instead of producing an unauthenticated API.
+    const sessionStore = createSessionStore();
+    const sessionMiddleware = createSessionMiddleware({
+      secret: config.sessionSecret,
+      store: sessionStore,
+      isProduction: config.isProduction,
+      trustProxy: config.trustProxy,
+    });
+
+    app = createApp({
+      trustProxy: config.trustProxy,
+      session: {
+        middleware: sessionMiddleware,
+        isProduction: config.isProduction,
+        clientOrigin: config.clientOrigin,
+      },
+    });
+  } catch (error) {
+    failStartup('Authentication session configuration failed — the API was not started', {
+      error: error.message,
+    });
+    return;
+  }
+
   httpServer = app.listen(config.port);
 
   httpServer.on('listening', () => {

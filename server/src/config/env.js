@@ -13,6 +13,15 @@ export const ENV_FILE_PATH = fileURLToPath(new URL('../../../.env', import.meta.
 
 dotenv.config({ path: ENV_FILE_PATH, quiet: true });
 
+const isHttpOrigin = (value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
@@ -24,6 +33,22 @@ const envSchema = z.object({
     .refine((value) => /^mongodb(\+srv)?:\/\//.test(value), {
       message: 'must start with mongodb:// or mongodb+srv://',
     }),
+  // Required: sessions cannot be signed with a missing or short secret.
+  SESSION_SECRET: z
+    .string()
+    .min(32, 'must be at least 32 characters (use a random 32-byte value)')
+    .refine((value) => !/^(replace-with|change-me|your-secret|example)/i.test(value), {
+      message: 'must be replaced with a random value, not a placeholder',
+    }),
+  // Optional. The Vite dev-server origin is the development default; in
+  // production the API normally relies on same-origin validation.
+  CLIENT_ORIGIN: z
+    .string()
+    .trim()
+    .refine((value) => value.length === 0 || isHttpOrigin(value), {
+      message: 'must be an absolute http(s) origin',
+    })
+    .optional(),
 });
 
 export class ConfigError extends Error {
@@ -51,12 +76,19 @@ export function loadEnv(source = process.env) {
     );
   }
 
+  const isProduction = result.data.NODE_ENV === 'production';
+  const configuredOrigin = result.data.CLIENT_ORIGIN?.trim() ?? '';
+
   return Object.freeze({
     nodeEnv: result.data.NODE_ENV,
-    isProduction: result.data.NODE_ENV === 'production',
+    isProduction,
     trustProxy: result.data.TRUST_PROXY === 'true',
     port: result.data.PORT,
     mongodbUri: result.data.MONGODB_URI,
+    sessionSecret: result.data.SESSION_SECRET,
+    // Development falls back to the documented Vite proxy origin. Production
+    // defaults to same-origin only and never trusts a wildcard.
+    clientOrigin: configuredOrigin || (isProduction ? '' : 'http://localhost:5173'),
     envFilePath: ENV_FILE_PATH,
     envFileExists: fs.existsSync(ENV_FILE_PATH),
   });
