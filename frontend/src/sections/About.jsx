@@ -2,9 +2,11 @@ import { usePortfolio } from '../PortfolioContext.jsx';
 import Arrow from '../components/Arrow.jsx';
 import Container from '../components/Container.jsx';
 import { tagClass } from '../components/TechnologyTags.jsx';
+import { summarizeEducation } from './backgroundContent.js';
 
 export default function About() {
-  const { profile, skillGroups } = usePortfolio();
+  const { profile, skillGroups, education } = usePortfolio();
+  const educationLine = summarizeEducation(education[0]) ?? profile.education;
 
   return (
     <section
@@ -30,22 +32,30 @@ export default function About() {
             <br />
             <span className="text-accent">Practical by design.</span>
           </h2>
+          {profile.headline ? (
+            <p className="mt-5 max-w-[34ch] text-[0.98rem] leading-relaxed text-muted">
+              {profile.headline}
+            </p>
+          ) : null}
         </div>
 
         <div className="min-w-0">
-          <p className="text-[clamp(1.08rem,1.65vw,1.35rem)] leading-relaxed tracking-[-0.02em]">
-            I learn best by making things — figuring out how interfaces, backend systems,
-            automation, and data-driven ideas come together.
-          </p>
-          <p className="mt-4 text-[0.92rem] leading-relaxed text-muted">
-            I&rsquo;m building my foundations in software engineering while turning what I learn
-            into projects. I care about clear problem-solving, maintainable code, and making
-            software that is genuinely useful.
-          </p>
+          {profile.bio.map((paragraph, index) => (
+            <p
+              key={index}
+              className={
+                index === 0
+                  ? 'text-[clamp(1.08rem,1.65vw,1.35rem)] leading-relaxed tracking-[-0.02em]'
+                  : 'mt-4 text-[0.92rem] leading-relaxed text-muted'
+              }
+            >
+              {paragraph}
+            </p>
+          ))}
 
           <p className="mt-6 flex items-start gap-2.5 border-t border-line-strong pt-5 text-[0.8rem] leading-relaxed text-muted">
             <Arrow diagonal className="mt-[3px] text-accent" />
-            {profile.education}
+            {educationLine}
           </p>
 
           <div className="mt-10">

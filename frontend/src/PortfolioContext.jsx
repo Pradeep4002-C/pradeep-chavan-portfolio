@@ -18,6 +18,11 @@ export function PortfolioProvider({ children }) {
     profile: fallbackProfile,
     projects: fallbackProjects,
     skillGroups: fallbackSkillGroups,
+    // Background content exists only in the database; no bundled records are
+    // invented when the API is unavailable.
+    education: [],
+    certifications: [],
+    achievements: [],
   });
 
   useEffect(() => {

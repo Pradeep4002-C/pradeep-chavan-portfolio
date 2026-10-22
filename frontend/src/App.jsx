@@ -1,5 +1,6 @@
 import Navbar from './components/Navbar.jsx';
 import About from './sections/About.jsx';
+import Background from './sections/Background.jsx';
 import Contact from './sections/Contact.jsx';
 import Footer from './sections/Footer.jsx';
 import Hero from './sections/Hero.jsx';
@@ -22,6 +23,7 @@ export default function App() {
         <Hero />
         <Work />
         <About />
+        <Background />
         <Contact />
       </main>
       <Footer />

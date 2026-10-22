@@ -2,6 +2,12 @@ export const profile = {
   name: 'Pradeep Chavan',
   email: 'chavanpradeep096@gmail.com',
   intro: 'I’m Pradeep, a Computer Science Engineering student who turns practical problems into full-stack applications, workflow automations, and data-driven tools.',
+  /* The approved About copy. These paragraphs render until the database profile
+     supplies a non-empty biography, so the section is never blank. */
+  bio: [
+    'I learn best by making things — figuring out how interfaces, backend systems, automation, and data-driven ideas come together.',
+    'I’m building my foundations in software engineering while turning what I learn into projects. I care about clear problem-solving, maintainable code, and making software that is genuinely useful.',
+  ],
   location: 'Belgaum, Karnataka, India',
   github: 'https://github.com/Pradeep4002-C',
   linkedin: 'https://www.linkedin.com/in/pradeep-chavan-268329337/',

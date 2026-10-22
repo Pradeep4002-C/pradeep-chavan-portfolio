@@ -1,19 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePortfolio } from '../PortfolioContext.jsx';
+import { hasBackgroundContent } from '../sections/backgroundContent.js';
 import Brand from './Brand.jsx';
 import Button from './Button.jsx';
 import Container from './Container.jsx';
 import DownloadIcon from './DownloadIcon.jsx';
 
-const navSections = [
-  { id: 'work', label: 'Work' },
-  { id: 'about', label: 'About' },
-  { id: 'contact', label: 'Contact' },
-];
-
-// Every section that can be "current"; `home` is included so the reading band
-// behaves at the very top, even though it has no navigation link of its own.
-const observedIds = ['home', ...navSections.map((section) => section.id)];
+const SECTION_LABELS = {
+  work: 'Work',
+  about: 'About',
+  background: 'Background',
+  contact: 'Contact',
+};
 
 /* Shared link styling.
    - Default: muted text, no underline.
@@ -36,12 +34,21 @@ function linkClass(isActive) {
 }
 
 export default function Navbar() {
-  const { profile } = usePortfolio();
+  const { profile, education, certifications, achievements } = usePortfolio();
+  // `background` joins the navigation only while the public section exists, so
+  // a link can never point at an element that is not rendered.
+  const sectionKey = hasBackgroundContent({ education, certifications, achievements })
+    ? 'work about background contact'
+    : 'work about contact';
+  const navSections = sectionKey
+    .split(' ')
+    .map((id) => ({ id, label: SECTION_LABELS[id] }));
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeId, setActiveId] = useState(() =>
     typeof window === 'undefined' ? '' : window.location.hash.slice(1),
   );
   const menuButtonRef = useRef(null);
+  const appliedHashRef = useRef('');
   const resumeHref = `${import.meta.env.BASE_URL}${profile.resume}`;
 
   /* Track the section the visitor is actually looking at, so the marker follows
@@ -56,6 +63,9 @@ export default function Navbar() {
      flickering. A resize rebuilds the observer (debounced) because the band is
      measured in pixels. */
   useEffect(() => {
+    // `home` is included so the reading band behaves correctly at the very top,
+    // even though it has no navigation link of its own.
+    const observedIds = ['home', ...sectionKey.split(' ')];
     const elements = observedIds
       .map((id) => document.getElementById(id))
       .filter(Boolean);
@@ -114,28 +124,34 @@ export default function Navbar() {
       window.removeEventListener('resize', scheduleReconnect);
       if (observer) observer.disconnect();
     };
-  }, []);
+  }, [sectionKey]);
 
   /* Restore deep links. The sections are rendered by React, so a URL such as
      /#about reaches the browser before the target exists and the native fragment
      scroll finds nothing. Once the section is in the DOM, put the visitor on it.
      `scrollIntoView` honours the html `scroll-padding-top`, so the sticky header
-     still keeps its distance. */
+     still keeps its distance.
+
+     The effect also runs when `#background` first appears after the API call, but
+     a hash that has already been scrolled to is never applied twice, so late
+     content cannot yank a visitor who has started scrolling. */
   useEffect(() => {
     const id = window.location.hash.slice(1);
-    if (!id) return undefined;
+    if (!id || appliedHashRef.current === id) return undefined;
 
     const target = document.getElementById(id);
     if (!target) return undefined;
 
     // A deep link is a jump, not an animation, and timers keep working in tabs
-    // where animation frames are paused.
+    // where animation frames are paused. The hash is recorded once the jump has
+    // happened, so a cleanup caused by the API arriving first simply re-schedules.
     const timer = window.setTimeout(() => {
+      appliedHashRef.current = id;
       target.scrollIntoView({ block: 'start', behavior: 'instant' });
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [sectionKey]);
 
   // Close the mobile menu with Escape or when the viewport returns to desktop.
   useEffect(() => {
