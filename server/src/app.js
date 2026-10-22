@@ -8,6 +8,11 @@ import { createAdminRouter } from './routes/admin.js';
 import { createContactRateLimiter } from './middleware/contactRateLimit.js';
 import { notFound } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import {
+  FRONTEND_DIST_DIR,
+  createFrontendRouter,
+  isFrontendBuilt,
+} from './frontend.js';
 
 /**
  * Builds the Express application without starting it or touching the
@@ -24,6 +29,7 @@ export function createApp({
   contactRateLimit,
   session,
   loginRateLimit,
+  frontendDist = FRONTEND_DIST_DIR,
 } = {}) {
   const app = express();
 
@@ -70,7 +76,23 @@ export function createApp({
     });
   }
 
-  // No SPA fallback yet: unknown paths get a JSON 404.
+  // Unknown API paths terminate here as JSON. Handling them before the static
+  // middleware guarantees that a file placed under dist/api/ can never turn an
+  // unknown API route into an HTML document or an asset download.
+  app.use('/api', notFound);
+
+  // The built frontend is optional: development normally uses Vite, and an
+  // API-only process must still start when dist/ has not been built. Static
+  // files and the SPA fallback are mounted after the API, so /api/* can never
+  // be answered with index.html. In production, index.js refuses to start
+  // without a build rather than silently serving an API-only site.
+  if (isFrontendBuilt(frontendDist)) {
+    app.use(createFrontendRouter({ distDir: frontendDist }));
+  }
+
+  // Unknown paths reach this point: API clients and missing assets get JSON,
+  // never a substitute HTML document. The frontend router above has already
+  // handled / and /admin/* for browser navigations.
   app.use(notFound);
   app.use(errorHandler);
 

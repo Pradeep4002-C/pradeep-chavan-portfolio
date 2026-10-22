@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { ConfigError, ENV_FILE_PATH, loadEnv } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/db.js';
 import { createSessionMiddleware, createSessionStore } from './config/session.js';
+import { FRONTEND_DIST_DIR, isFrontendBuilt } from './frontend.js';
 import { logger } from './lib/logger.js';
 
 let httpServer = null;
@@ -74,6 +75,27 @@ async function start() {
     envFileExists: config.envFileExists,
   });
 
+  // A production process is expected to serve the website as well as the API.
+  // Failing here is clearer than a deploy that appears healthy while every
+  // browser request receives a JSON 404.
+  const frontendBuilt = isFrontendBuilt();
+  if (config.isProduction && !frontendBuilt) {
+    failStartup('Frontend build not found — the server was not started', {
+      expected: FRONTEND_DIST_DIR,
+      hint: 'Run `npm run build:frontend` (or `npm run build`) before starting the production server.',
+    });
+    return;
+  }
+
+  if (config.isProduction && !config.trustProxy) {
+    // Not fatal: the process may terminate TLS itself. Behind a reverse proxy
+    // (including Render), trust-proxy must be enabled for req.protocol and the
+    // Secure session cookie to be correct.
+    logger.warn('Production is running without TRUST_PROXY', {
+      hint: 'Set TRUST_PROXY=true when a single HTTPS reverse proxy terminates TLS in front of this process.',
+    });
+  }
+
   try {
     await connectDatabase(config.mongodbUri);
   } catch (error) {
@@ -117,7 +139,11 @@ async function start() {
   httpServer = app.listen(config.port);
 
   httpServer.on('listening', () => {
-    logger.info('API listening', { port: config.port, env: config.nodeEnv });
+    logger.info('API listening', {
+      port: config.port,
+      env: config.nodeEnv,
+      frontend: frontendBuilt ? 'enabled' : 'disabled',
+    });
   });
 
   httpServer.on('error', (error) => {

@@ -1,0 +1,33 @@
+# Render Blueprint for the single-origin portfolio service.
+#
+# Prerequisites (owner-supplied, never committed):
+#   - a GitHub/GitLab repository containing this project, connected to Render
+#   - a MongoDB Atlas cluster, database user, and network access rule
+#
+# The service builds the Vite frontend and starts the Express server, which
+# serves both /api/* and the built frontend from one origin. Render supplies
+# PORT automatically, so it is not set here.
+services:
+  - type: web
+    name: pradeep-portfolio
+    runtime: node
+    plan: free
+    buildCommand: npm run install:all && npm run build:frontend
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render terminates TLS at exactly one reverse proxy in front of the
+      # service. This keeps req.ip, req.protocol, and the Secure session cookie
+      # correct without trusting arbitrary forwarded headers.
+      - key: TRUST_PROXY
+        value: 'true'
+      # Entered in the Render Dashboard when the Blueprint is created. Never
+      # commit the real connection string.
+      - key: MONGODB_URI
+        sync: false
+      # Render generates a base64-encoded 256-bit value on first creation and
+      # preserves it across deploys. It can be replaced in the Dashboard.
+      - key: SESSION_SECRET
+        generateValue: true

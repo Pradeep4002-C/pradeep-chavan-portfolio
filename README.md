@@ -15,9 +15,10 @@ A project-first portfolio: a **React + Vite + Tailwind CSS v4** frontend and an 
 | Admin dashboard and project management | Complete (M6) — protected `/admin` React routes, database-backed overview, administrator project CRUD API and UI, publish/unpublish, validation and tests |
 | Message inbox and content management | Complete (M7) — contact-message inbox (filter, read/unread, delete), skill-group/education/certification/achievement CRUD with ordering, profile editing, protected APIs, validation and tests |
 | Public background and profile presentation | Complete (M8) — database-backed About headline and biography, conditional Background section for education/certifications/achievements, navigation and deep-link integration, tests and fallback |
-| Email notifications, image and resume uploads, production SPA serving | **Not implemented yet** — planned for later milestones |
+| Production integration | Complete (M9) — Express serves `frontend/dist` on the same origin as `/api`, SPA fallback for `/admin/*`, cache and security headers, Render Blueprint, production startup checks, tests and deployment documentation |
+| Email notifications, image and resume uploads | **Not implemented yet** — planned for later milestones |
 
-The React app renders the bundled content immediately, then replaces it with database-backed content when `GET /api/portfolio` succeeds. If the API is unavailable, the bundled content stays visible; the backend is not required merely to view the site. The existing public design, copy, illustrations, and navigation remain in place; M4 adds the contact form inside the existing Contact section and changes no other section. M6 adds a separate administrator application under `/admin` that is loaded lazily, so the public portfolio bundle and design are unaffected. M7 adds administrator pages and APIs for the message inbox and the remaining content collections. M8 renders that content publicly: the About section can use the database headline and biography, and a new Background section presents education, certifications, and achievements. Both disappear or fall back cleanly when the database holds no such content.
+The React app renders the bundled content immediately, then replaces it with database-backed content when `GET /api/portfolio` succeeds. If the API is unavailable, the bundled content stays visible; the backend is not required merely to view the site. The existing public design, copy, illustrations, and navigation remain in place; M4 adds the contact form inside the existing Contact section and changes no other section. M6 adds a separate administrator application under `/admin` that is loaded lazily, so the public portfolio bundle and design are unaffected. M7 adds administrator pages and APIs for the message inbox and the remaining content collections. M8 renders that content publicly: the About section can use the database headline and biography, and a new Background section presents education, certifications, and achievements. Both disappear or fall back cleanly when the database holds no such content. M9 makes the same Express process serve the built frontend and the API from one origin, adds the `/admin/*` history fallback and production cache headers, and documents a Render + MongoDB Atlas deployment. It has **not** been deployed: the owner must provide a Git remote, hosting account, Atlas cluster, and production secrets.
 
 ## Repository layout
 
@@ -25,7 +26,9 @@ The React app renders the bundled content immediately, then replaces it with dat
 Portfolio_new/
 ├── .env.example                 # Documented environment placeholders (safe to commit)
 ├── .gitignore
+├── .node-version                # Node version used locally and by Render
 ├── package.json                 # Root convenience scripts
+├── render.yaml                  # Render Blueprint (single web service, secrets prompted)
 ├── README.md
 ├── CODE-COPY-PASTE.md           # Snapshot of the frontend source (files in frontend/ are authoritative)
 ├── frontend/                    # React + Vite + Tailwind app
@@ -45,10 +48,12 @@ Portfolio_new/
     │   ├── contact.test.js      # Isolated contact API tests
     │   ├── auth.test.js         # Isolated authentication and session tests
     │   ├── admin.test.js        # Isolated admin overview and project CRUD tests
-    │   └── admin-content.test.js # Isolated inbox and content-management tests (M7)
+    │   ├── admin-content.test.js # Isolated inbox and content-management tests (M7)
+    │   └── production-serving.test.js # Static serving, SPA fallback, cache tests (M9)
     └── src/
         ├── index.js             # Startup, shutdown, process-level error handling
         ├── app.js               # Express application (helmet, JSON parsing, routes)
+        ├── frontend.js          # frontend/dist serving, cache headers, SPA fallback (M9)
         ├── config/
         │   ├── env.js           # dotenv + Zod validation
         │   ├── db.js            # Mongoose connection and status
@@ -103,12 +108,12 @@ The frontend keeps its existing entry points, sections, illustrations, and styli
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `NODE_ENV` | No | `development` | `development`, `production`, or `test` |
-| `PORT` | No | `4000` | Port the Express API listens on |
-| `TRUST_PROXY` | No | `false` | Set `true` only behind exactly one trusted reverse proxy; required for correct client IPs and HTTPS cookies in that deployment |
-| `MONGODB_URI` | **Yes** | — | MongoDB connection string |
-| `SESSION_SECRET` | **Yes** | — | Random secret (at least 32 bytes) used to sign the administrator session cookie |
-| `CLIENT_ORIGIN` | No | `http://localhost:5173` in development; empty in production | Trusted browser origin for state-changing authentication requests, in addition to same-origin |
+| `NODE_ENV` | No | `development` | `development`, `production`, or `test`. Production enables Secure session cookies, requires the frontend build, and relies on same-origin validation |
+| `PORT` | No | `4000` | Port the Express server listens on. Render sets this automatically to its routed port |
+| `TRUST_PROXY` | No | `false` | Set `true` only behind exactly one trusted reverse proxy (Render). Required for correct client IPs, `req.protocol`, origin checks, and Secure cookies in that deployment |
+| `MONGODB_URI` | **Yes** | — | MongoDB connection string. Use Atlas in production; never reuse the local URI |
+| `SESSION_SECRET` | **Yes** | — | Random secret (at least 32 bytes) used to sign the administrator session cookie. Render can generate it |
+| `CLIENT_ORIGIN` | No | `http://localhost:5173` in development; empty in production | Extra trusted browser origin for state-changing authentication requests. Leave empty for single-origin production |
 
 Generate `SESSION_SECRET` with a cryptographically secure random source and never commit it:
 
@@ -119,6 +124,8 @@ node -e "console.log(require('node:crypto').randomBytes(48).toString('base64'))"
 The copied placeholder in `.env.example` is deliberately rejected by validation, so a real value must be set. The server never logs the secret.
 
 `TRUST_PROXY` is deliberately off by default. When it is `false`, Express uses the socket address for `req.ip`; enabling it behind a proxy would otherwise let a caller spoof `X-Forwarded-For` and bypass the contact limiter. For a single-proxy host such as Render, set `TRUST_PROXY=true` so the limiter sees the visitor's IP. Do not enable it when the API is directly exposed to the internet.
+
+In production, the server also requires `frontend/dist/index.html` and refuses to start without it; this prevents a deploy that looks healthy while every browser request receives a JSON 404. `PORT` is supplied by the hosting platform and must not be hard-coded. `CLIENT_ORIGIN` stays empty for the single-origin architecture, and no wildcard CORS is configured.
 
 The server loads `.env` from the repository root by resolving the path relative to `server/src/config/env.js`, so it behaves the same whether it is started from the repository root or from `server/`. Variables already present in the process environment take precedence over the file.
 
@@ -152,11 +159,11 @@ The API refuses to start until the database connection succeeds. Mongoose create
 ## Install
 
 ```powershell
-npm --prefix frontend ci
+npm --prefix frontend ci --include=dev
 npm --prefix server ci
 ```
 
-Or in one step: `npm run install:all`.
+Or in one step: `npm run install:all`. The `--include=dev` flag keeps Vite and Tailwind available even when `NODE_ENV=production` is set in a build environment; the build needs those dev dependencies.
 
 ## Development commands
 
@@ -166,14 +173,16 @@ Run the two applications in separate terminals.
 | --- | --- |
 | `npm run dev:frontend` | Vite dev server at `http://localhost:5173/` |
 | `npm run dev:server` | API with Node's watch mode at `http://localhost:4000/` |
+| `npm run build` | Alias for `npm run build:frontend` |
 | `npm run build:frontend` | Production build into `frontend/dist/` |
-| `npm run preview:frontend` | Preview the production build |
-| `npm run start:server` | Start the API without watch mode |
+| `npm run preview:frontend` | Preview the production build with Vite (no API proxy) |
+| `npm run start` | Start the Express server (serves the build when present) |
+| `npm run start:server` | Alias retained for earlier milestones |
 | `npm run seed:content` | Create missing portfolio records (safe to repeat) |
 | `npm run admin:create` | Create the first administrator interactively |
 | `npm test` | Run backend and frontend automated tests |
-| `npm run test:server` | Contact API tests against an isolated MongoDB database |
-| `npm run test:frontend` | Contact API client tests (Node test runner) |
+| `npm run test:server` | API tests against isolated MongoDB databases |
+| `npm run test:frontend` | Frontend API-client and helper tests (Node test runner) |
 
 The same commands work directly inside `frontend/` (`npm run dev`, `npm run build`, `npm run preview`) and `server/` (`npm run dev`, `npm start`).
 
@@ -195,7 +204,7 @@ Open `http://localhost:5173/`. The page renders the bundled content immediately 
 
 The administrator area is served by the same Vite server at `http://localhost:5173/admin/login`. Sign-in requires an administrator created with `npm run admin:create`; there is no registration.
 
-`npm run preview:frontend` serves the production build, but **Vite preview does not apply the development proxy**. Opening the preview without a same-origin API therefore exercises the fallback path, not the proxy path. Production same-origin serving belongs to a later milestone.
+`npm run preview:frontend` serves the production build, but **Vite preview does not apply the development proxy**. Use it only to inspect the built frontend; use the Express production server (`npm run build:frontend` then `npm run start`) when you need the frontend and API on one origin.
 
 ## Health endpoint
 
@@ -214,12 +223,12 @@ Healthy response — `200 OK`:
 }
 ```
 
-If the connection drops after startup, the same endpoint returns `503 Service Unavailable` with `"status": "degraded"`. It exposes no environment values, connection strings, hostnames, or stack traces.
+If the connection drops after startup, the same endpoint returns `503 Service Unavailable` with `"status": "degraded"`. It exposes no environment values, connection strings, hostnames, or stack traces. Render's health check uses this path, so a service is only marked healthy while MongoDB is actually connected.
 
 ## API behaviour
 
 - JSON-only requests with a **32 KB** body limit.
-- Unknown routes return a JSON `404`:
+- Unknown API routes and missing static assets return a JSON `404`:
 
   ```json
   { "error": { "code": "NOT_FOUND", "message": "The requested resource was not found." } }
@@ -228,7 +237,7 @@ If the connection drops after startup, the same endpoint returns `503 Service Un
 - Malformed JSON returns `400 INVALID_JSON`; an oversized body returns `413 PAYLOAD_TOO_LARGE`.
 - Unexpected failures return `500 INTERNAL_ERROR` with a generic message. Stack traces are logged server-side and are never sent to a client, in development or production. Routes that can handle visitor or credential data (contact persistence, login, logout) pass a `SafeError` so only a safe diagnostic category is logged, never a raw database message that could contain submitted content.
 - Helmet sets security headers on every response; `X-Powered-By` is disabled.
-- There is **no SPA fallback and no CORS configuration**. Development uses Vite's same-origin proxy; serving the production frontend from Express belongs to a later milestone.
+- When a build exists, the same Express process serves `frontend/dist`. Browser navigations to `/` and `/admin/*` fall back to `index.html`; API paths, missing assets, non-GET requests, and clients that explicitly request JSON never receive HTML. There is **no CORS configuration**: development uses Vite's same-origin proxy and production uses one origin.
 
 ## Public portfolio API
 
@@ -362,11 +371,11 @@ The limiter is applied only to the contact route, not to portfolio browsing. The
 
 If MongoDB is disconnected, the endpoint returns `503 DATABASE_UNAVAILABLE` without pretending the message was sent. An unexpected save failure returns `500 INTERNAL_ERROR` through the central handler, with no database details or stack trace.
 
-There is **no public message-read endpoint**. Contact messages are not included in `GET /api/portfolio` or any other public route; an admin inbox belongs to a later milestone. **Email notifications are not implemented in M4** — messages are stored only in MongoDB and no external email provider is called.
+There is **no public message-read endpoint**. Contact messages are not included in `GET /api/portfolio` or any other public route; the administrator inbox added in M7 reads them behind authentication. **Email notifications are not implemented in M4** — messages are stored only in MongoDB and no external email provider is called.
 
 ## Administrator authentication
 
-M5 adds cookie-based administrator sessions. There is still **no dashboard, no CRUD, and no message inbox**; those belong to later milestones. All authentication is enforced by the backend independently of any frontend route guard.
+M5 adds cookie-based administrator sessions. At this milestone there was still **no dashboard, no CRUD, and no message inbox**; those were added in M6 and M7. All authentication is enforced by the backend independently of any frontend route guard.
 
 ### Session architecture
 
@@ -649,7 +658,7 @@ No account is created automatically and there are no default credentials. Create
 - If the request fails, the bundled profile, projects, and skills remain on screen, About keeps its approved biography, and the Background section stays hidden. The only diagnostic is one `console.warn` in development; production logs nothing and shows no error state, because the fallback is already the intended public experience.
 - The contact form uses `frontend/src/api/contact.js`, which posts through the shared `postJson` helper in `client.js`. It requires a confirmation message in a successful response; a malformed success response becomes an error, so the form can never show a false success.
 - Contact form state is local to `Contact.jsx`: validation messages sit beside the affected fields, the submit button is disabled while a request is in flight, a synchronous guard prevents double requests, and the `role="status"` region reports progress, success, or failure. Success clears the form; failure preserves every entered value for a retry. The request is aborted on unmount and late responses cannot update an unmounted component.
-- The Vite development proxy is the only proxy in this milestone. Relative URLs are used everywhere, so production can later serve the API and frontend from one origin without hard-coded `localhost` addresses.
+- The Vite development proxy remains for development. Relative URLs are used everywhere, so the same bundle works in production where Express serves the API and frontend from one origin; no `localhost` URL is compiled into the bundle.
 
 ## Database models
 
@@ -705,6 +714,176 @@ The administrator is never created automatically at application startup. The own
 
 `.env` stays untracked; `.env.example` contains placeholders only (including a placeholder session secret that validation rejects).
 
+## Production deployment (single origin)
+
+> **Status: configured and verified locally in production mode, not deployed.** There is no Git remote, Render service, MongoDB Atlas cluster, or production credential in this repository. Nothing below has created external resources. The owner must complete the account, repository, and secret steps explicitly.
+
+### Architecture
+
+```text
+Browser
+   |
+   v
+Render HTTPS reverse proxy
+   |
+   v
+Express (one Node process, PORT from the host)
+   |
+   +--> /api/*        existing APIs (JSON)
+   |
+   +--> /admin/*      React SPA entry (index.html)
+   |
+   +--> /             public portfolio (index.html + hash navigation)
+   |
+   +--> /assets/*     fingerprinted JavaScript and CSS
+   |
+   +--> favicon.svg, resume.pdf, robots.txt
+   |
+   v
+MongoDB Atlas (portfolio content, administrators, sessions, messages)
+```
+
+`server/src/frontend.js` resolves `frontend/dist` from the server module location, so the working directory does not matter. A missing build in production stops startup with a clear error instead of serving an API-only site.
+
+### Build and start
+
+```powershell
+npm run install:all
+npm run build:frontend
+npm start
+```
+
+The server reads the root `.env` in development. In production, set the variables in the host's protected environment instead:
+
+| Variable | Production value |
+| --- | --- |
+| `NODE_ENV` | `production` |
+| `PORT` | Supplied by Render; do not hard-code |
+| `MONGODB_URI` | Atlas connection string, entered securely |
+| `SESSION_SECRET` | At least 32 random bytes; Render can generate it |
+| `TRUST_PROXY` | `true` behind Render's single HTTPS proxy |
+| `CLIENT_ORIGIN` | Empty (frontend and API share one origin) |
+
+Startup fails with exit code `1` if required configuration is invalid, if the database cannot be reached, or if the frontend build is missing. Sessions are created before `listen()`; no administrator is created automatically.
+
+### Static serving and routing
+
+| Request | Response |
+| --- | --- |
+| `GET /` | `index.html`, `Cache-Control: public, max-age=0, must-revalidate`, ETag |
+| `GET /admin`, `/admin/login`, `/admin/projects`, and every other `/admin/*` path | Same `index.html` entry, so direct visits and refreshes work |
+| `GET /assets/*` (Vite-hashed files) | Correct content type, `Cache-Control: public, max-age=31536000, immutable` |
+| `GET /favicon.svg`, `/resume.pdf`, `/robots.txt` | Correct content type, revalidating cache |
+| `GET /api/*` | Existing API response envelope |
+| Unknown `/api/*` | JSON `404 NOT_FOUND` |
+| Missing `.js`, `.css`, `.pdf`, or other asset | JSON `404`, never `index.html` |
+| `POST /admin` and other non-GET requests | JSON `404`; the SPA fallback is read-only |
+
+The fallback matches only `/` and the `/admin` prefix, and only for GET/HEAD requests that accept HTML. Express 5 wildcard syntax is not used. The public site keeps its hash links (`/#work`, `/#about`, `/#contact`, `/#background`); fragments never reach the server.
+
+### MongoDB Atlas setup
+
+1. Create or select an Atlas project and a cluster. A free M0 cluster is adequate for evaluation, not for an uptime guarantee.
+2. Create a database user with the least required privilege: `readWrite` on the application database only. Do not use an Atlas administrator account for the application.
+3. Configure network access. Render publishes its outbound CIDR ranges under the service's **Connect → Outbound** tab; allowlist those ranges (or purchase dedicated outbound IPs from Render). These ranges are shared by other Render services in the same region, so allowlisting them is weaker than dedicated IPs. Allowlisting `0.0.0.0/0` is a last resort: it exposes the cluster to the internet and should be combined with a unique strong password, a database-scoped user, and Atlas alerts. Never silently assume unrestricted access is acceptable.
+4. Copy the `mongodb+srv://...` connection string for the application database. Keep TLS/`retryWrites` defaults. Store it as `MONGODB_URI` in Render; never commit it.
+5. Deploy, then verify `GET /api/health` returns `200` with `database.status: "connected"`.
+6. Seed and create the administrator deliberately (next sections). Do not migrate the local database or copy local records automatically.
+
+The server never logs the URI, password, or session secret. Startup logs only the database name and host, and `/api/health` exposes only connection status.
+
+### Render deployment
+
+`render.yaml` describes one free Node web service:
+
+```yaml
+buildCommand: npm run install:all && npm run build:frontend
+startCommand: npm start
+healthCheckPath: /api/health
+```
+
+Steps:
+
+1. Create a GitHub/GitLab repository and push this project. **No remote exists yet**, so this repository cannot be deployed until the owner does that.
+2. In Render, choose **New → Blueprint** and select the repository. Render reads `render.yaml`.
+3. Enter `MONGODB_URI` when prompted. Render generates `SESSION_SECRET` (`generateValue: true`, a base64-encoded 256-bit value) and preserves it across deploys; it can be replaced in the Dashboard.
+4. Choose the region closest to the Atlas cluster. Deploy and wait for the health check.
+5. Open `https://<service>.onrender.com/` and `/admin/login`.
+
+Render sets `PORT` and terminates TLS at one reverse proxy; `TRUST_PROXY=true` makes `req.secure`, `req.ip`, and origin checks correct. Do not add wildcard CORS or disable origin validation. `CLIENT_ORIGIN` stays empty because both sides share one origin.
+
+### Free-tier limitations
+
+- A free web service **sleeps after 15 minutes without traffic** and takes about a minute to wake; the first request may show Render's loading page.
+- While asleep, Render answers `/robots.txt` with `Disallow: /`; when awake, the project's own `robots.txt` is served.
+- Free services have **no Shell and no one-off jobs**, so run the seed and administrator scripts from your machine against Atlas (below), or use a paid instance for a one-off job.
+- 750 free instance hours per workspace per month; services can be suspended at the limit. Render may restart a free service at any time.
+- The filesystem is ephemeral; all durable data lives in Atlas. Storage is 512 MB RAM / 0.1 CPU on the free plan.
+- **Do not claim production-grade uptime or reliability for the free plan.** Upgrade the instance type if availability matters.
+
+### Seed and first administrator
+
+Both scripts validate the full environment and use the root `.env`; an environment variable set in the shell takes precedence. Run them from the repository root, with the owner's local `SESSION_SECRET` still present in `.env`:
+
+```powershell
+$env:MONGODB_URI = Read-Host 'Atlas connection string'
+npm run seed:content
+npm run admin:create -- --email owner@example.com --name "Owner Name"
+Remove-Item Env:\MONGODB_URI
+```
+
+`Read-Host` avoids storing the connection string in command history. The administrator script prompts for the password twice with hidden input; never pass a password as an argument and never commit it. Use a unique password from a password manager.
+
+The seed is idempotent: it creates only missing profile/project/skill-group records and never overwrites administrator-edited content. It deliberately does **not** seed education, certifications, achievements, the headline, or biography, because the repository has no confirmed wording for them. A freshly seeded production database therefore shows the bundled About copy, no headline, and **no Background section** until the owner enters verified content.
+
+### Enter verified content
+
+1. Sign in at `https://<service>.onrender.com/admin/login`.
+2. Add only genuine education, certifications, and achievements through the existing admin pages. Each section stays hidden publicly while its collection is empty; no placeholder or invented record is rendered.
+3. Edit the profile headline and biography only with approved wording. Empty fields keep the existing approved fallback.
+4. Reload `/` and confirm that each section appears, that only approved content is shown, and that the resume and social links still work.
+
+### Session, HTTPS, and cookie behaviour
+
+- Sessions use MongoDB (`sessions` collection, `connect-mongo`); Express `MemoryStore` is never used.
+- The cookie is host-only, `HttpOnly`, `SameSite=Lax`, `Secure` in production, `Path=/`, with an eight-hour lifetime. The session id is regenerated on login; logout destroys the server-side session and clears the cookie.
+- `req.secure` is correct only with `TRUST_PROXY=true` behind exactly one proxy. Do not trust arbitrary `X-Forwarded-For` values.
+- Login failures are generic, account lockout and the per-IP login limiter remain enabled, and state-changing admin routes still require a valid session and a trusted origin.
+- Helmet sets HSTS, CSP, `nosniff`, frame, and referrer headers on both HTML and API responses. No wildcard CORS is configured.
+
+### Rate limits and single-instance assumptions
+
+The contact limiter (five submissions per IP per hour) and login limiter (five attempts per IP per fifteen minutes) use **in-memory stores per process**. They reset on restart, are not shared between instances, and are not a substitute for infrastructure-level protection. Run exactly one instance for this deployment. If the service is ever scaled beyond one instance, move both limiters to a shared store (for example Redis) first; do not deploy multiple instances and claim the limits still hold. Render may briefly overlap instances during a deploy, and a free instance sleeps and restarts.
+
+### Verify a deployment
+
+```powershell
+curl.exe -i https://<service>.onrender.com/api/health
+curl.exe -I https://<service>.onrender.com/
+curl.exe -I https://<service>.onrender.com/admin/login
+curl.exe -I https://<service>.onrender.com/resume.pdf
+curl.exe -i https://<service>.onrender.com/api/not-a-route
+```
+
+Expected: health `200`/`ok`; `/` and `/admin/login` return HTML with `no-cache`; resume is `application/pdf`; unknown API is JSON `404` and never HTML. Then open the site and sign in with the production administrator to confirm the database-backed content and session.
+
+### Deployment status and troubleshooting
+
+| Symptom | Likely cause and fix |
+| --- | --- |
+| `Frontend build not found — the server was not started` | The host did not run the build. Use the documented build command, or run `npm run build:frontend` before `npm start`. |
+| `npm run build:frontend` fails with `vite: not found` | `NODE_ENV=production` caused `npm ci` to omit dev dependencies. Reinstall with `npm install --prefix frontend --include=dev`. |
+| Blueprint cannot find the repository | No Git remote/account exists yet. Push to GitHub/GitLab and connect it in Render; this milestone does not create either. |
+| Atlas connection times out on Render | Check the Atlas database user, password, database name, and network access rule. Render's outbound ranges are on the service's Connect tab. |
+| Login succeeds but the dashboard returns `401` | The Secure cookie requires HTTPS and `TRUST_PROXY=true`; check that the proxy forwards `X-Forwarded-Proto` and that `CLIENT_ORIGIN` is empty for same-origin. |
+| Login returns `403 FORBIDDEN_ORIGIN` behind the proxy | `TRUST_PROXY` is `false` or set incorrectly, so `req.protocol` is `http` while the browser Origin is `https`. Use exactly one trusted proxy. |
+| First visit after idle takes about a minute | Expected on the free plan: the service is waking from sleep. Not a code fault. |
+| `/api/health` returns `503` after a deploy | The database is not connected. Check Atlas access and credentials; the API refuses to report healthy without Mongo. |
+| `/robots.txt` says `Disallow: /` without deploying that file | Render's free service is asleep. It serves its own response until the service wakes. |
+| Content saved in the dashboard is missing after a deploy | Durable data is in Atlas, not the ephemeral filesystem. Confirm the deployed `MONGODB_URI` points at the intended database. |
+
+**Not verified:** a live public URL, custom domain, TLS certificate, Atlas cluster, Render service, or production secrets. Those require the owner's accounts and authorization; nothing was created automatically.
+
 ## Running tests
 
 ```powershell
@@ -727,6 +906,8 @@ mongodb://127.0.0.1:27017/pradeep_portfolio_m6_test   # admin overview and proje
 mongodb://127.0.0.1:27017/pradeep_portfolio_m7_test   # admin inbox, content, and profile tests
 ```
 
+The M9 production-serving suite does not connect to MongoDB; it starts the Express app with a temporary `dist` fixture and stops it afterwards.
+
 Override any of them with `TEST_MONGODB_URI`. Each suite refuses to run unless the database name ends in `_test`; they delete only their own collections (`contactmessages`, `admins`, `sessions`, `projects`, `skillgroups`, `educations`, `certifications`, `achievements`, and `profiles`) before and after the run. They never connect to, clear, drop, or write to `pradeep_portfolio`. MongoDB must be running.
 
 The backend tests cover valid persistence, `read: false`, required fields, email shape and normalisation, subject-optional handling, length limits, unknown-field rejection, honeypot suppression, timing suppression, rate-limit `429` and headers, spoofed `X-Forwarded-For` handling, disconnected-database `503`, write-failure `500` with a log-safety assertion, safe error bodies, invalid JSON, oversized bodies, health, portfolio, and the absence of a public contact-read route.
@@ -736,6 +917,8 @@ The M5 authentication tests cover valid login, wrong password, unknown account, 
 The M6 admin tests cover unauthenticated rejection of the overview and every project route, the trusted-origin requirement on state-changing routes, the overview aggregate counts from the test database, listing seeded and newly created projects, creation with the stored document verified directly, reading one project, updating title/description/technologies, publishing and unpublishing, the public endpoint hiding unpublished projects while the admin list keeps them, rejection of invalid slugs, URLs, artwork, malformed ObjectIds, duplicate slugs, and forbidden fields, `404` for a nonexistent project, deletion followed by a confirming read, and the unique-slug index.
 
 The M7 admin-content tests cover unauthenticated rejection of every new route, the trusted-origin requirement on every new mutation, inbox pagination metadata, newest-first ordering, the three read filters, the `50` limit cap, strict query rejection, read/unread persistence, strict update bodies, delete plus `404` for missing and malformed ids, the overview unread count following reads and deletes, and the absence of messages from the public payload. They also cover CRUD, ordering, and validation for skill groups (including duplicate labels and the public reflection of changes), education (required fields and the `endYear >= startYear` rule on create and partial update), certifications (including optional URLs), and achievements, plus profile creation and update without a duplicate document, partial-update preservation, URL/email validation, rejection of `key`/`_id`, and reflection through `GET /api/portfolio`. A final group re-checks health, portfolio, contact, and `503` behaviour.
+
+The M9 production-serving tests use a temporary `dist` fixture and no database. They cover index delivery and revalidation, every admin route as a direct navigation, immutable caching and content types for fingerprinted assets, favicon/resume/robots serving, JSON `404` for missing assets and unknown API paths, refusal to return HTML to JSON clients, the `/admin` prefix boundary, GET/HEAD-only fallback, and an unbuilt frontend leaving the API and JSON 404 behaviour intact. The actual built application was additionally served in production mode for the checks below.
 
 The frontend suite uses Node's test runner with a mocked `fetch`; it does not render React. It covers the relative endpoint, request payload, success confirmation, validation-field propagation, malformed success responses, network failures, abort handling, and the absence of contact values in console output. It also covers the admin API client (relative admin paths, method and body wiring, `204` handling, field-error propagation, and shape validation that rejects malformed payloads), the project form helpers (slug generation and technology parsing), the M7 inbox and collection wrappers (query building, response-shape validation, `PUT` profile updates), and the shared content-form helpers (list parsing, record ↔ form conversion, payload building, numeric/year/URL validation, and the education cross-field rule). The M8 tests cover profile headline and biography normalisation (empty, malformed, over-long, and valid input), education/certification/achievement mapping (required fields, sorting by `order`, year bounds, reversed ranges, HTTP(S)-only certificate URLs, dropped malformed records), empty and missing collections, and the Background visibility, period-formatting, and About summary helpers. React components are additionally exercised in a browser (see below), not by a DOM test runner.
 
@@ -775,7 +958,7 @@ With Atlas, open the cluster in the Atlas UI or connect with your own connection
 | `npm run test:server` fails with `ECONNREFUSED 127.0.0.1:27017` | Start MongoDB, or set `TEST_MONGODB_URI` to a reachable isolated database whose name ends in `_test`. |
 | The contact form says it could not reach the service while the API is stopped | Expected: Vite's proxy returns a failed request, and the form preserves the entered values so you can retry after starting `npm run dev:server`. |
 | Rate limiting blocks every visitor behind a proxy | Set `TRUST_PROXY=true` on a single-proxy deployment so `req.ip` uses the forwarded client address; leave it `false` when the API is directly exposed. |
-| The production preview shows bundled content instead of database content | Expected: `vite preview` does not apply the development proxy. Production same-origin API serving is a later milestone. |
+| The Vite preview shows bundled content instead of database content | Expected: `vite preview` does not apply the development proxy. Use the Express production server (`npm run build:frontend` + `npm start`) for same-origin testing. |
 | `E11000 duplicate key` while seeding | A document already uses that unique identifier (profile key, project slug, or skill-group label). The seed skips it and leaves it untouched; inspect it before changing anything. |
 | `An administrator with that email already exists` | Working as designed. The script never replaces an account or its password; use a different email or manage the existing account deliberately. |
 | Seeded content looks stale after editing `portfolio.js` | Seeding only creates missing records. Update already-seeded records through the admin workflow once it exists, or edit them in MongoDB deliberately. |
@@ -789,7 +972,7 @@ With Atlas, open the cluster in the Atlas UI or connect with your own connection
 | `/admin/projects` shows "No projects yet" although the public site lists projects | Expected until the shared database has projects, or until you add them. The admin list shows the same records as the public site plus unpublished drafts; it never shows sample data. |
 | Creating a project fails with "That slug is already in use" | Slugs are unique. Choose a different slug, or edit the existing project. |
 | An admin request fails immediately after a long idle period | The session expired. The UI returns to `/admin/login`; sign in again. The cookie is `HttpOnly`, so no token exists in browser storage to refresh manually. |
-| Opening `http://localhost:5173/admin/projects` directly in a fresh browser tab works, but a production host returns 404 | Expected limitation: the development server rewrites unknown paths to `index.html`, but a production static host must be configured to serve `index.html` for `/admin/*`. See the routing limitation note. |
+| Opening `http://localhost:5173/admin/projects` directly in a fresh browser tab works, but the Express production server returns JSON `404` | Check that `frontend/dist/index.html` exists and that the request is a GET/HEAD navigation accepting HTML. The production fallback covers `/` and `/admin/*` only. |
 
 ## Frontend
 
@@ -878,7 +1061,11 @@ Project repository destinations are sourced from the hyperlinks in the supplied 
 - The resume button is labelled "Download resume" and downloads the PDF (`download` attribute on a same-origin link), so the label matches the action.
 - The header brand is a "PC" monogram beside the name; the letters are generated content so they stay out of the link's accessible name.
 - Nothing in the showcase stands in for an application screen: there is no screenshot, no placeholder box, no stock imagery, no imitation window, and no fabricated metric. The drawings are labelled diagrams, and each entry ends at one real repository link.
-- The public site renders the bundled portfolio immediately, then hydrates from `GET /api/portfolio`; a failed request leaves the bundled content untouched. Administrator authentication exists as an API-only milestone; the admin dashboard, CRUD endpoints, an admin message inbox, email notifications, image uploads, and production same-origin SPA serving arrive later.
+- The public site renders the bundled portfolio immediately, then hydrates from `GET /api/portfolio`; a failed request leaves the bundled content untouched. Administrator authentication, the dashboard, CRUD endpoints, the message inbox, and production same-origin serving are complete. Email notifications and image/resume uploads remain out of scope.
+- Production serving lives in one Express process. `server/src/frontend.js` resolves `frontend/dist` from `import.meta.url`, serves fingerprinted assets with a one-year immutable cache, and revalidates `index.html`, favicon, resume, and robots on every request. The SPA fallback answers only GET/HEAD HTML navigations for `/` and the `/admin` prefix; unknown APIs, missing assets, and JSON clients keep the existing JSON 404 envelope. Express 5 regex routing is used instead of a bare `*` path.
+- The production server refuses to start without `frontend/dist/index.html`, and logs a warning when `NODE_ENV=production` runs without `TRUST_PROXY`. It still binds the platform-provided `PORT` and connects to MongoDB before listening. Session cookies become `Secure` in production, so the HTTPS proxy and `TRUST_PROXY=true` are part of the deployment contract, not an optional tuning step.
+- Rate limiters remain in-memory and per-process. This is documented as a single-instance assumption rather than described as globally shared; scaling out requires a shared store first.
+- `render.yaml` contains no credentials: `MONGODB_URI` is prompted securely and `SESSION_SECRET` is generated by Render. No hosting resource, remote repository, or live deployment was created in this milestone.
 
 ## Accessibility and quality checks
 
@@ -957,8 +1144,23 @@ M8 public-presentation checks were run against the actual application with an is
 - The production build passed: **81 modules**, public entry `index-*.js` **192.24 kB** (60.85 kB gzip), CSS **43.81 kB**, and the public page still requested no `Admin*` chunk.
 - The test database was dropped afterwards, the temporary seed script, frame page, and Vite config were deleted, and the real `pradeep_portfolio` database was re-checked: `admins: 0`, `achievements: 0`, `certifications: 0`, `contactmessages: 0`, `educations: 0`, `profiles: 1`, `projects: 3`, `skillgroups: 4` — unchanged.
 
+M9 production-mode checks were run against the actual built application served by Express, using the isolated `pradeep_portfolio_m9_test` database, the existing idempotent seed, and a disposable administrator created with `npm run admin:create`:
+
+- `npm test` passed: **86 backend tests** (77 M1–M8 plus 9 new production-serving tests) and **52 frontend tests**, with 0 failures. The new tests use a temporary `dist` fixture and no database.
+- The production build passed: **81 modules**, public entry `index-BSyEDXY8.js` **192.24 kB** (60.84 kB gzip), CSS `index-BSvlVh7l.css` **43.81 kB** (8.99 kB gzip). Admin pages remained separate lazy chunks; the public page loaded only the public entry.
+- With `NODE_ENV=production`, `TRUST_PROXY=true`, and a random disposable `SESSION_SECRET`, Express served the real build: `/` returned the React entry; every admin path (`/admin`, `/admin/login`, `/admin/projects`, `/admin/messages`, `/admin/skills`, `/admin/education`, `/admin/certifications`, `/admin/achievements`, `/admin/profile`) returned `200 text/html` for a direct navigation. `GET /assets/*.js` and `*.css` returned the correct types with `public, max-age=31536000, immutable`; `index.html` and admin entries returned `public, max-age=0, must-revalidate` with an ETag. `/favicon.svg`, `/resume.pdf` (`application/pdf`, 199350 bytes), and `/robots.txt` were served with revalidating caches.
+- Unknown API paths and missing `.js`/`.pdf` assets returned JSON `404 NOT_FOUND`, never HTML. `POST /admin` returned JSON 404. The public API returned the seeded profile, three projects, and four skill groups, with empty education/certification/achievement collections and no administrator, session, or message fields.
+- `POST /api/contact` returned `201` against the isolated database; an invalid body returned `400`. Anonymous `/api/admin/overview` returned `401`. A valid login with `X-Forwarded-Proto: https` returned `200` and a `pradeep.sid` cookie carrying `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, and an expiry; `/api/auth/me` authenticated, logout returned `204`, and the old session then returned `401`. A foreign `Origin` was rejected with `403`. The session id never appeared in the login body, and logs contained no MongoDB URI, session secret, or password.
+- Startup failure paths were verified: an unreachable database exited with code `1`, did not listen, and logged only `ECONNREFUSED` without the URI or secret; a temporarily removed `frontend/dist` produced `Frontend build not found — the server was not started` with a build hint and no listener.
+- In the production browser session, the public page rendered from the served build with the stylesheet, public bundle, and `/api/portfolio` all at `200`, no console warnings or errors, no external assets, zero `<img>` elements, the resume link pointing to `/resume.pdf`, and no Background section or admin link while its collections were empty. Direct navigation to `/admin/projects` returned the HTML entry (`200`) and rendered the administrator sign-in page. `/` scored **100** for Accessibility, Best Practices, and SEO in Lighthouse against the production server.
+- Same-origin frames at 320, 375, 414, 768, 1024, and 1440 pixels reported no horizontal overflow; the header, About, Work, and Contact sections remained present, and no admin links appeared in the header or footer.
+- Because production cookies are `Secure`, a browser on plain `http://localhost` cannot complete a production-mode sign-in (the cookie is not issued over an insecure connection). The session flow above was therefore verified with `curl` sending `X-Forwarded-Proto: https`, matching Render's HTTPS proxy. Browser sign-in was already verified in development in M6/M7.
+- The test database was dropped afterwards. The real `pradeep_portfolio` database was re-checked and remained: `admins: 0`, `achievements: 0`, `certifications: 0`, `contactmessages: 0`, `educations: 0`, `profiles: 1`, `projects: 3`, `skillgroups: 4`. No hosting resource or live deployment was created.
+
 The test browser viewport was **785 CSS pixels** wide (a 1000px window at 80% zoom), so screenshots were not available and visual inspection relied on DOM text, computed styles, and the frame measurements above. The listed widths were genuinely measured through same-origin frames; widths above 1024px therefore exercise the responsive CSS but were not viewed on a physical monitor.
 
-## Routing limitation for `/admin/*`
+## Production routing for `/admin/*`
 
-The administrator area is a client-side route. Vite's development server rewrites unknown paths to `index.html`, so `/admin`, `/admin/login`, `/admin/projects`, `/admin/messages`, `/admin/skills`, `/admin/education`, `/admin/certifications`, `/admin/achievements`, and `/admin/profile` work directly during development. A production static host **must** be configured to serve `index.html` for `/admin/*` (a single-page-application fallback), otherwise a direct visit or refresh on a deep admin path returns the host's `404`. This milestone does not include production hosting; the history-fallback rule is documented here so the owner configures it when the site is deployed. The same rule applies to any future client-side route.
+The administrator area is a client-side route. Vite's development server rewrites unknown paths to `index.html`, so `/admin`, `/admin/login`, `/admin/projects`, `/admin/messages`, `/admin/skills`, `/admin/education`, `/admin/certifications`, `/admin/achievements`, and `/admin/profile` work directly during development.
+
+In production, the Express server now provides the same fallback: `server/src/frontend.js` answers GET/HEAD navigations under `/admin` (and `/`) with the built `index.html`, so direct visits and refreshes work. The fallback deliberately does not match lookalike prefixes such as `/administrator`, non-GET requests, JSON clients, API paths, or missing assets. If the frontend is ever moved to a separate static host, that host must be configured with an equivalent `/admin/*` rewrite to `index.html`; the repository itself no longer relies on an external host to implement it.
