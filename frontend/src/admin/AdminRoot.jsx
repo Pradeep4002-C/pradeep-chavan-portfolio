@@ -25,8 +25,8 @@ const AdminProfilePage = lazy(() => import('./AdminProfilePage.jsx'));
  *
  * Routing note: this uses paths, not hashes. Deep links such as
  * /admin/projects require the host to fall back to index.html for unknown
- * paths (Vite does this in development; production hosting must be configured
- * the same way in a later milestone).
+ * paths. Vite provides that fallback in development, and the Express
+ * production router provides the same SPA fallback for browser navigations.
  */
 export default function AdminRoot() {
   return (

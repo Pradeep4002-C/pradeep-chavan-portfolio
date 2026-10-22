@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import { useAdminAuth } from './AdminAuthContext.jsx';
@@ -44,10 +44,24 @@ export default function AdminLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState(null);
+  const menuButtonRef = useRef(null);
 
   useEffect(() => {
-    setMenuOpen(false);
-  }, []);
+    if (!menuOpen) {
+      return undefined;
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [menuOpen]);
 
   async function handleLogout() {
     if (loggingOut) {
@@ -118,6 +132,7 @@ export default function AdminLayout() {
             <AdminPill />
           </a>
           <button
+            ref={menuButtonRef}
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
             aria-expanded={menuOpen}

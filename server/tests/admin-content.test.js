@@ -294,10 +294,29 @@ test('rejects unauthenticated requests to every content endpoint with 401', asyn
   for (const result of await Promise.all(calls)) {
     assert.equal(result.response.status, 401);
     assert.equal(result.json?.error?.code, 'UNAUTHENTICATED');
+    assert.equal(result.response.headers.get('cache-control'), 'no-store');
+    assert.match(result.response.headers.get('vary') ?? '', /Cookie/i);
   }
 
   assert.equal(await SkillGroup.countDocuments(), 0);
   assert.equal(await Profile.countDocuments(), 0);
+});
+
+test('authenticated and unknown admin responses are private and never cacheable', async (t) => {
+  const server = await startServer();
+  t.after(server.close);
+  const cookie = await loginAsAdmin(server.base);
+
+  const overview = await request(server.base, OVERVIEW_PATH, { cookie });
+  assert.equal(overview.response.status, 200);
+  assert.equal(overview.response.headers.get('cache-control'), 'no-store');
+  assert.match(overview.response.headers.get('vary') ?? '', /Cookie/i);
+
+  const unknown = await request(server.base, '/api/admin/not-a-route', { cookie });
+  assert.equal(unknown.response.status, 404);
+  assert.equal(unknown.json?.error?.code, 'NOT_FOUND');
+  assert.equal(unknown.response.headers.get('cache-control'), 'no-store');
+  assert.match(unknown.response.headers.get('vary') ?? '', /Cookie/i);
 });
 
 test('rejects unexpected origins on state-changing content requests', async (t) => {

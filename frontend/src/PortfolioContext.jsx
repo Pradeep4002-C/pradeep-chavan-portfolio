@@ -1,29 +1,23 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { fetchPortfolio } from './api/portfolio.js';
-import {
-  profile as fallbackProfile,
-  projects as fallbackProjects,
-  skillGroups as fallbackSkillGroups,
-} from './data/portfolio.js';
+import { EMPTY_PORTFOLIO, fetchPortfolio } from './api/portfolio.js';
 
 const PortfolioContext = createContext(null);
 
+export const PORTFOLIO_STATUS = Object.freeze({
+  loading: 'loading',
+  ready: 'ready',
+  unavailable: 'unavailable',
+});
+
 /**
- * Renders the bundled portfolio immediately, then replaces it with API content
- * if the public endpoint succeeds. The request never blocks first paint, and a
- * failure leaves the bundled content exactly as it was.
+ * Renders the approved profile copy immediately, but keeps database-managed
+ * projects and skills empty until GET /api/portfolio confirms their current
+ * state. A failed request leaves them empty rather than reviving bundled seed
+ * data that may now be unpublished or deleted.
  */
 export function PortfolioProvider({ children }) {
-  const [content, setContent] = useState({
-    profile: fallbackProfile,
-    projects: fallbackProjects,
-    skillGroups: fallbackSkillGroups,
-    // Background content exists only in the database; no bundled records are
-    // invented when the API is unavailable.
-    education: [],
-    certifications: [],
-    achievements: [],
-  });
+  const [content, setContent] = useState(EMPTY_PORTFOLIO);
+  const [status, setStatus] = useState(PORTFOLIO_STATUS.loading);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -33,6 +27,7 @@ export function PortfolioProvider({ children }) {
       .then((apiContent) => {
         if (isCurrent) {
           setContent(apiContent);
+          setStatus(PORTFOLIO_STATUS.ready);
         }
       })
       .catch((error) => {
@@ -40,11 +35,13 @@ export function PortfolioProvider({ children }) {
           return;
         }
 
-        // One concise, secret-free diagnostic in development only. The page
-        // already shows the bundled content, so there is nothing to retry.
+        setStatus(PORTFOLIO_STATUS.unavailable);
+
+        // One concise, secret-free diagnostic in development only. There is no
+        // automatic retry loop; the public page shows a stable unavailable state.
         if (import.meta.env.DEV) {
           console.warn(
-            '[portfolio] API content unavailable; using bundled content.',
+            '[portfolio] API content unavailable; database-managed sections are empty.',
             error?.message ?? 'Unknown error',
           );
         }
@@ -56,7 +53,9 @@ export function PortfolioProvider({ children }) {
     };
   }, []);
 
-  return <PortfolioContext.Provider value={content}>{children}</PortfolioContext.Provider>;
+  return (
+    <PortfolioContext.Provider value={{ ...content, status }}>{children}</PortfolioContext.Provider>
+  );
 }
 
 export function usePortfolio() {

@@ -17,6 +17,9 @@ export function createLoginRateLimiter(options = {}) {
   return rateLimit({
     windowMs: LOGIN_RATE_LIMIT.windowMs,
     limit: LOGIN_RATE_LIMIT.limit,
+    // Count failed attempts only. Repeated successful sign-ins from the owner's
+    // own network must not exhaust the IP allowance and lock them out.
+    skipSuccessfulRequests: true,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     handler: (req, res) => {

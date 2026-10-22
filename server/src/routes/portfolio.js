@@ -17,6 +17,11 @@ export const portfolioRouter = Router();
  * timestamps, versions, and internal ids can never be serialised here.
  */
 portfolioRouter.get('/', async (req, res) => {
+  // Content is editable through the dashboard, so allow clients to store it but
+  // require revalidation on every reuse. This prevents a published, edited, or
+  // deleted project from remaining visible indefinitely.
+  res.set('Cache-Control', 'public, max-age=0, must-revalidate');
+
   // Fail fast and honestly when the connection has dropped, instead of
   // buffering queries for the driver timeout.
   if (getDatabaseStatus().status !== 'connected') {

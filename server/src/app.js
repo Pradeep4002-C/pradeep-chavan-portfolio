@@ -6,6 +6,7 @@ import { contactRouter } from './routes/contact.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createContactRateLimiter } from './middleware/contactRateLimit.js';
+import { privateApiCache } from './middleware/privateApiCache.js';
 import { notFound } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import {
@@ -49,6 +50,11 @@ export function createApp({
   app.use('/api/health', healthRouter);
   app.use('/api/portfolio', portfolioRouter);
   app.use('/api/contact', createContactRateLimiter(contactRateLimit), contactRouter);
+
+  // Authentication and administrator responses are session-dependent. Apply
+  // the private cache policy before the routers so success, error, and unknown
+  // sub-route responses all carry the same explicit headers.
+  app.use(['/api/auth', '/api/admin'], privateApiCache);
 
   if (session?.middleware) {
     app.use(session.middleware);

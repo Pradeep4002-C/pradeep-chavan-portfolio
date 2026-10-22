@@ -1,8 +1,4 @@
-import {
-  profile as fallbackProfile,
-  projects as fallbackProjects,
-  skillGroups as fallbackSkillGroups,
-} from '../data/portfolio.js';
+import { profile as fallbackProfile } from '../data/portfolio.js';
 import { getJson } from './client.js';
 
 // Mirrors the enum on the Project model and the renderers in ProjectArtwork.
@@ -15,6 +11,20 @@ const YEAR_MIN = 1950;
 const YEAR_MAX = 2100;
 const BIO_MAX_PARAGRAPHS = 20;
 const BIO_MAX_PARAGRAPH_LENGTH = 2000;
+
+/**
+ * Safe starting content while the public API is loading. The approved profile
+ * copy can render immediately, but database-managed projects and skills stay
+ * empty until the API confirms their current state.
+ */
+export const EMPTY_PORTFOLIO = Object.freeze({
+  profile: fallbackProfile,
+  projects: [],
+  skillGroups: [],
+  education: [],
+  certifications: [],
+  achievements: [],
+});
 
 function asText(value) {
   if (typeof value !== 'string') {
@@ -110,7 +120,7 @@ function normalizeProfile(apiProfile) {
   return next;
 }
 
-function normalizeProject(apiProject, index, fallbackBySlug) {
+function normalizeProject(apiProject, index) {
   if (!apiProject || typeof apiProject !== 'object') {
     return null;
   }
@@ -125,7 +135,6 @@ function normalizeProject(apiProject, index, fallbackBySlug) {
     return null;
   }
 
-  const fallback = fallbackBySlug.get(slug);
   const order = Number.isFinite(apiProject.order) ? apiProject.order : index + 1;
   const technologies = Array.isArray(apiProject.technologies)
     ? apiProject.technologies.map(asText).filter(Boolean)
@@ -134,16 +143,14 @@ function normalizeProject(apiProject, index, fallbackBySlug) {
   return {
     id: slug,
     number: String(Math.max(0, Math.trunc(order))).padStart(2, '0'),
-    category: asText(apiProject.category) ?? fallback?.category ?? '',
+    category: asText(apiProject.category) ?? '',
     name: title,
-    summary: asText(apiProject.summary) ?? fallback?.summary ?? '',
-    description: asText(apiProject.description) ?? fallback?.description ?? '',
-    technologies: technologies.length > 0 ? technologies : (fallback?.technologies ?? []),
+    summary: asText(apiProject.summary) ?? '',
+    description: asText(apiProject.description) ?? '',
+    technologies,
     href: repoUrl,
-    linkLabel: fallback?.linkLabel ?? 'View source',
-    artwork: ARTWORK_KEYS.has(apiProject.artwork)
-      ? apiProject.artwork
-      : (fallback?.artwork ?? null),
+    linkLabel: 'View source',
+    artwork: ARTWORK_KEYS.has(apiProject.artwork) ? apiProject.artwork : null,
     featured: Boolean(apiProject.featured),
   };
 }
@@ -262,20 +269,19 @@ const byOrderThenTitle = (a, b) => a.order - b.order || a.title.localeCompare(b.
 
 /**
  * Normalises the API payload into the exact shapes the existing components
- * expect. Projects and skills only replace bundled content when at least one
- * valid record survives, so a malformed response cannot blank a section. The
- * background collections have no bundled equivalent and are simply empty when
- * the database holds no records.
+ * expect. Projects and skills are administrator-managed resources, so the
+ * published database response is authoritative: an empty or malformed
+ * collection stays empty rather than borrowing bundled seed data. The
+ * background collections follow the same empty-means-hidden rule.
  */
 export function normalizePortfolio(data) {
   if (!data || typeof data !== 'object') {
     throw new Error('Portfolio response did not include a data object.');
   }
 
-  const fallbackBySlug = new Map(fallbackProjects.map((project) => [project.id, project]));
   const apiProjects = Array.isArray(data.projects)
     ? data.projects
-        .map((project, index) => normalizeProject(project, index, fallbackBySlug))
+        .map((project, index) => normalizeProject(project, index))
         .filter(Boolean)
     : [];
   const apiSkillGroups = Array.isArray(data.skills)
@@ -288,8 +294,8 @@ export function normalizePortfolio(data) {
 
   return {
     profile: normalizeProfile(data.profile),
-    projects: apiProjects.length > 0 ? apiProjects : fallbackProjects,
-    skillGroups: apiSkillGroups.length > 0 ? apiSkillGroups : fallbackSkillGroups,
+    projects: apiProjects,
+    skillGroups: apiSkillGroups,
     education: normalizeCollection(data.education, normalizeEducation, byOrderThenInstitution),
     certifications: normalizeCollection(
       data.certifications,

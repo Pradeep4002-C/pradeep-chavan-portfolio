@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Button from '../components/Button.jsx';
 import { createProject, updateProject } from './adminApi.js';
 import { Notice, describeError, fieldErrorClass, inputClass, labelClass } from './AdminUi.jsx';
+import { useDialogFocus } from './dialogFocus.js';
 import { formatTechnologies, parseTechnologies, slugify } from './projectForm.js';
 
 const ARTWORK_OPTIONS = [
@@ -178,15 +180,18 @@ export default function ProjectFormDialog({ mode, project, onClose, onSaved, onU
   const [formError, setFormError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const titleRef = useRef(null);
+  const dialogRef = useRef(null);
 
   const dirty = useMemo(
     () => JSON.stringify(values) !== JSON.stringify(initialValues),
     [values, initialValues],
   );
 
-  useEffect(() => {
-    titleRef.current?.focus();
-  }, []);
+  useDialogFocus(dialogRef, {
+    initialFocusRef: titleRef,
+    onEscape: requestClose,
+    canDismiss: () => !submitting,
+  });
 
   function update(key, value) {
     setValues((previous) => ({ ...previous, [key]: value }));
@@ -241,16 +246,9 @@ export default function ProjectFormDialog({ mode, project, onClose, onSaved, onU
     }
   }
 
-  function handleKeyDown(event) {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      requestClose();
-    }
-  }
-
   const headingId = 'project-form-heading';
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/45 px-4 py-8 sm:items-center"
       onMouseDown={(event) => {
@@ -260,12 +258,13 @@ export default function ProjectFormDialog({ mode, project, onClose, onSaved, onU
       }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
         aria-busy={submitting}
-        onKeyDown={handleKeyDown}
-        className="w-full max-w-2xl rounded-2xl border border-line bg-surface shadow-xl"
+        className="w-full max-w-2xl rounded-2xl border border-line bg-surface shadow-xl outline-none"
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
           <div>
@@ -511,6 +510,7 @@ export default function ProjectFormDialog({ mode, project, onClose, onSaved, onU
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

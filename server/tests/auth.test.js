@@ -218,6 +218,39 @@ test('logs in with valid credentials, persists the session, and returns only saf
   assert.equal(JSON.stringify(stored).includes(TEST_PASSWORD), false);
 });
 
+test('auth responses are private and never cacheable', async (t) => {
+  const server = await startServer();
+  t.after(server.close);
+  await createTestAdmin();
+
+  const loginResult = await login(server.base);
+  assert.equal(loginResult.response.status, 200);
+  assert.equal(loginResult.response.headers.get('cache-control'), 'no-store');
+  assert.match(loginResult.response.headers.get('vary') ?? '', /Cookie/i);
+
+  const cookie = sessionCookieFrom(loginResult.setCookieValues);
+  assert.ok(cookie, 'expected a session cookie');
+
+  const me = await request(server.base, ME_PATH, { cookie });
+  assert.equal(me.response.status, 200);
+  assert.equal(me.response.headers.get('cache-control'), 'no-store');
+  assert.match(me.response.headers.get('vary') ?? '', /Cookie/i);
+
+  const anonymousMe = await request(server.base, ME_PATH);
+  assert.equal(anonymousMe.response.status, 401);
+  assert.equal(anonymousMe.response.headers.get('cache-control'), 'no-store');
+
+  const unknown = await request(server.base, '/api/auth/not-a-route');
+  assert.equal(unknown.response.status, 404);
+  assert.equal(unknown.response.headers.get('cache-control'), 'no-store');
+  assert.match(unknown.response.headers.get('vary') ?? '', /Cookie/i);
+
+  const logout = await request(server.base, LOGOUT_PATH, { method: 'POST', cookie });
+  assert.equal(logout.response.status, 204);
+  assert.equal(logout.response.headers.get('cache-control'), 'no-store');
+  assert.match(logout.response.headers.get('vary') ?? '', /Cookie/i);
+});
+
 test('rejects a wrong password with the generic invalid-credentials response', async (t) => {
   const server = await startServer();
   t.after(server.close);
@@ -338,6 +371,18 @@ test('rate limits login attempts per IP with JSON and standard headers', async (
     response.headers.get('ratelimit') || response.headers.get('x-ratelimit-limit'),
     'expected a standard rate-limit header',
   );
+});
+
+test('does not count successful logins against the login IP limit', async (t) => {
+  const server = await startServer({ loginRateLimit: { limit: 1, windowMs: 60 * 1000 } });
+  t.after(server.close);
+  await createTestAdmin();
+
+  const first = await login(server.base);
+  const second = await login(server.base);
+
+  assert.equal(first.response.status, 200);
+  assert.equal(second.response.status, 200);
 });
 
 test('returns the current administrator for an authenticated session', async (t) => {

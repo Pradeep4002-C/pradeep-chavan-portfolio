@@ -1,4 +1,7 @@
+import { useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Button from '../components/Button.jsx';
+import { useDialogFocus } from './dialogFocus.js';
 
 /* Small, shared administrator UI pieces. They reuse the portfolio's design
    tokens (paper/surface/ink/muted/line/accent) so the admin area stays visually
@@ -143,7 +146,13 @@ export function Dialog({
   children,
   className = 'max-w-xl',
 }) {
-  return (
+  const dialogRef = useRef(null);
+  useDialogFocus(dialogRef, {
+    onEscape: onClose,
+    canDismiss: () => !busy,
+  });
+
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/45 px-4 py-8 sm:items-center"
       onMouseDown={(event) => {
@@ -153,22 +162,19 @@ export function Dialog({
       }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role={role}
         aria-modal="true"
         aria-labelledby={labelledBy}
         aria-describedby={describedBy}
         aria-busy={busy}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape' && !busy) {
-            event.stopPropagation();
-            onClose();
-          }
-        }}
-        className={`w-full rounded-2xl border border-line bg-surface shadow-xl ${className}`}
+        className={`w-full rounded-2xl border border-line bg-surface shadow-xl outline-none ${className}`}
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -192,7 +198,7 @@ export function ConfirmDialog({
           {message}
         </p>
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button autoFocus type="button" variant="outline" onClick={onCancel} disabled={busy}>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>
             Cancel
           </Button>
           <button type="button" className={dangerButtonClass} onClick={onConfirm} disabled={busy}>

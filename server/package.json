@@ -5,7 +5,7 @@
   "description": "Express API for Pradeep Chavan's portfolio",
   "type": "module",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.19.0"
   },
   "scripts": {
     "dev": "node --watch src/index.js",

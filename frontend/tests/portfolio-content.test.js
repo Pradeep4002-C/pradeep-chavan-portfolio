@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizePortfolio } from '../src/api/portfolio.js';
+import { EMPTY_PORTFOLIO, normalizePortfolio } from '../src/api/portfolio.js';
 import { profile as fallbackProfile } from '../src/data/portfolio.js';
 
 function normalized({ profile = {}, ...collections } = {}) {
@@ -26,6 +26,97 @@ function normalized({ profile = {}, ...collections } = {}) {
     ...collections,
   });
 }
+
+test('the loading state contains approved profile copy but no database-managed records', () => {
+  assert.deepEqual(EMPTY_PORTFOLIO.projects, []);
+  assert.deepEqual(EMPTY_PORTFOLIO.skillGroups, []);
+  assert.deepEqual(EMPTY_PORTFOLIO.education, []);
+  assert.deepEqual(EMPTY_PORTFOLIO.certifications, []);
+  assert.deepEqual(EMPTY_PORTFOLIO.achievements, []);
+  assert.equal(EMPTY_PORTFOLIO.profile.name, fallbackProfile.name);
+  assert.deepEqual(EMPTY_PORTFOLIO.profile.bio, fallbackProfile.bio);
+});
+
+test('empty projects and skills stay empty instead of restoring bundled seed data', () => {
+  const result = normalized({ projects: [], skills: [] });
+
+  assert.deepEqual(result.projects, []);
+  assert.deepEqual(result.skillGroups, []);
+});
+
+test('deleted or unpublished resources are represented by an empty successful response', () => {
+  const result = normalized({
+    projects: [],
+    skills: [],
+    education: [],
+    certifications: [],
+    achievements: [],
+  });
+
+  assert.equal(result.projects.length, 0);
+  assert.equal(result.skillGroups.length, 0);
+});
+
+test('published projects and valid skills render from API data in order', () => {
+  const result = normalized({
+    projects: [
+      {
+        title: 'Second project',
+        slug: 'second-project',
+        category: 'Web app',
+        summary: 'Second summary',
+        description: 'Second description',
+        technologies: ['React', 'Express'],
+        repoUrl: 'https://example.com/second',
+        artwork: 'hostelcare',
+        featured: false,
+        order: 2,
+      },
+      {
+        title: 'First project',
+        slug: 'first-project',
+        category: 'Machine learning',
+        summary: 'First summary',
+        description: 'First description',
+        technologies: ['Python'],
+        repoUrl: 'https://example.com/first',
+        artwork: 'aquapredict',
+        featured: true,
+        order: 1,
+      },
+    ],
+    skills: [
+      { label: 'Tools', items: ['Git', 'VS Code'], order: 2 },
+      { label: 'Languages', items: ['JavaScript', 'Python'], order: 1 },
+    ],
+  });
+
+  assert.deepEqual(
+    result.projects.map((project) => project.id),
+    ['second-project', 'first-project'],
+  );
+  assert.equal(result.projects[1].featured, true);
+  assert.equal(result.projects[1].artwork, 'aquapredict');
+  assert.deepEqual(result.projects[1].technologies, ['Python']);
+  assert.equal(result.projects[1].href, 'https://example.com/first');
+  assert.equal(result.projects[0].number, '02');
+  assert.deepEqual(
+    result.skillGroups.map((group) => group.label),
+    ['Languages', 'Tools'],
+  );
+  assert.deepEqual(result.skillGroups[1].items, ['Git', 'VS Code']);
+});
+
+test('malformed or missing project and skill collections cannot revive seed data', () => {
+  const result = normalizePortfolio({
+    profile: {},
+    projects: 'not-an-array',
+    skills: null,
+  });
+
+  assert.deepEqual(result.projects, []);
+  assert.deepEqual(result.skillGroups, []);
+});
 
 test('an empty database biography keeps the approved About copy', () => {
   const cases = [[], ['', '   '], [null, 42], 'not-an-array', null, undefined];
@@ -209,6 +300,6 @@ test('background normalisation does not disturb projects, skills, or contact map
 
   assert.equal(result.profile.headline, 'Backend developer');
   assert.equal(result.profile.github, fallbackProfile.github);
-  assert.ok(result.projects.length > 0);
-  assert.ok(result.skillGroups.length > 0);
+  assert.deepEqual(result.projects, []);
+  assert.deepEqual(result.skillGroups, []);
 });

@@ -192,6 +192,14 @@ test('missing assets and unknown API paths return JSON 404, never index.html', a
   assert.equal(apiStaticFile.text.includes('must-not-be-served'), false);
 });
 
+test('public portfolio content requires revalidation instead of staying stale', async () => {
+  const { response, contentType } = await request(base, '/api/portfolio');
+
+  assert.equal(response.status, 503);
+  assert.match(contentType, /^application\/json/);
+  assert.equal(response.headers.get('cache-control'), 'public, max-age=0, must-revalidate');
+});
+
 test('does not return HTML to clients that explicitly request JSON', async () => {
   for (const route of ['/', '/admin', '/admin/login']) {
     const { response, text, contentType } = await request(base, route, {
