@@ -167,8 +167,13 @@ test('certifications keep only web links and sort by order', () => {
 test('achievements keep their description, year, and order without inventing fields', () => {
   const { achievements } = normalized({
     achievements: [
-      { title: 'Runner-up', year: 2025, description: 'Hackathon', order: 2 },
-      { title: 'Winner', year: 2024, order: 1 },
+      {
+        title: 'Departmental award',
+        year: 2025,
+        description: 'Recognised for academic performance.',
+        order: 2,
+      },
+      { title: 'Merit recognition', year: 2024, order: 1 },
       { description: 'No title' },
       null,
     ],
@@ -176,11 +181,11 @@ test('achievements keep their description, year, and order without inventing fie
 
   assert.deepEqual(
     achievements.map((record) => record.title),
-    ['Winner', 'Runner-up'],
+    ['Merit recognition', 'Departmental award'],
   );
   assert.equal(achievements[0].description, null);
   assert.equal(achievements[0].year, 2024);
-  assert.equal(achievements[1].description, 'Hackathon');
+  assert.equal(achievements[1].description, 'Recognised for academic performance.');
 });
 
 test('empty or missing background collections stay empty instead of borrowing content', () => {

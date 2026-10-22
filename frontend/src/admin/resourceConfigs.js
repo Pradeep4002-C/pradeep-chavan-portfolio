@@ -171,7 +171,7 @@ export const RESOURCE_CONFIGS = {
         requiredMessage: 'Enter a title.',
         maxLength: 200,
         span: 2,
-        placeholder: 'Hackathon winner',
+        placeholder: 'Award or recognition',
       },
       { name: 'year', label: 'Year', type: 'year', required: true, min: 1950, max: 2100 },
       {

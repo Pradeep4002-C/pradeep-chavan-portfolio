@@ -904,12 +904,16 @@ test('creates, lists, updates, and deletes achievements', async (t) => {
 
   const created = await request(server.base, ACHIEVEMENTS_PATH, {
     method: 'POST',
-    body: validAchievement({ title: 'Hackathon Winner', year: 2022, description: 'First place.' }),
+    body: validAchievement({
+      title: 'Departmental Award',
+      year: 2022,
+      description: 'Recognised for academic performance.',
+    }),
     cookie,
   });
   assert.equal(created.response.status, 201);
   const achievement = created.json.data.achievement;
-  assert.equal(achievement.title, 'Hackathon Winner');
+  assert.equal(achievement.title, 'Departmental Award');
   assert.equal(achievement.year, 2022);
 
   const list = await request(server.base, ACHIEVEMENTS_PATH, { cookie });
