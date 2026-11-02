@@ -1,5 +1,5 @@
 {
-  "name": "pradeep-portfolio-server",
+  "name": "pradeep-portfolio-backend",
   "version": "1.0.0",
   "private": true,
   "description": "Express API for Pradeep Chavan's portfolio",

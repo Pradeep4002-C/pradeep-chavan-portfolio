@@ -6,7 +6,7 @@ import { z } from 'zod';
 /*
  * The documented environment file lives at the repository root so that the
  * server behaves identically whether it is started from the root or from
- * server/. dotenv never overrides variables that are already set in the
+ * backend/. dotenv never overrides variables that are already set in the
  * process, which keeps real environment configuration authoritative.
  */
 export const ENV_FILE_PATH = fileURLToPath(new URL('../../../.env', import.meta.url));

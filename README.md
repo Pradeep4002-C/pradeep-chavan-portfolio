@@ -37,7 +37,7 @@ stay same-origin and no CORS configuration is required.
 │   │   └── main.jsx
 │   ├── tests/                Node test-runner unit tests
 │   └── docs/                 Design and structure notes
-├── server/                   Express 5 API
+├── backend/                  Express 5 API
 │   ├── scripts/              Seed content and create first administrator
 │   ├── src/
 │   │   ├── config/           Environment, database, session, auth settings
@@ -52,7 +52,7 @@ stay same-origin and no CORS configuration is required.
 └── package.json              Root commands only
 ```
 
-Keep the `frontend/` and `server/` folder names; deployment and scripts depend
+Keep the `frontend/` and `backend/` folder names; deployment and scripts depend
 on them.
 
 ## Technology stack
@@ -91,7 +91,7 @@ From the repository root:
 npm run install:all
 ```
 
-This runs `npm ci` in `frontend/` and `server/`. It does not install
+This runs `npm ci` in `frontend/` and `backend/`. It does not install
 dependencies at the root because the root package contains only orchestration
 scripts.
 
@@ -99,7 +99,7 @@ For normal development, you can also install each package separately:
 
 ```bash
 npm --prefix frontend ci --include=dev
-npm --prefix server ci
+npm --prefix backend ci
 ```
 
 ## Environment configuration
@@ -380,7 +380,7 @@ prove that a remote deployment succeeded.
   public page keeps its approved profile copy but does not invent projects or
   skills. It shows a stable unavailable state instead of stale seed records.
 - **Public content is database-authoritative.** Seed data is used by
-  `server/scripts/seed-content.js`; it is not a runtime substitute for
+  `backend/scripts/seed-content.js`; it is not a runtime substitute for
   unpublished or deleted projects and skill groups.
 - **The administrator area is a single-owner tool.** There is no public
   registration, password-reset flow, or role hierarchy.

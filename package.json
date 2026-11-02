@@ -12,14 +12,14 @@
     "build": "npm run build:frontend",
     "build:frontend": "npm --prefix frontend run build",
     "preview:frontend": "npm --prefix frontend run preview",
-    "dev:server": "npm --prefix server run dev",
-    "start": "npm --prefix server run start",
-    "start:server": "npm --prefix server run start",
-    "seed:content": "node server/scripts/seed-content.js",
-    "admin:create": "node server/scripts/create-admin.js",
-    "test:server": "npm --prefix server test",
+    "dev:server": "npm --prefix backend run dev",
+    "start": "npm --prefix backend run start",
+    "start:server": "npm --prefix backend run start",
+    "seed:content": "node backend/scripts/seed-content.js",
+    "admin:create": "node backend/scripts/create-admin.js",
+    "test:server": "npm --prefix backend test",
     "test:frontend": "npm --prefix frontend test",
     "test": "npm run test:server && npm run test:frontend",
-    "install:all": "npm --prefix frontend ci --include=dev && npm --prefix server ci"
+    "install:all": "npm --prefix frontend ci --include=dev && npm --prefix backend ci"
   }
 }

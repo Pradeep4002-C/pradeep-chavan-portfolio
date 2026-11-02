@@ -8,7 +8,7 @@ import express from 'express';
  *
  * The directory is resolved from this module rather than process.cwd(), so the
  * server behaves identically when started from the repository root, from
- * server/, or by a hosting platform with an arbitrary working directory.
+ * backend/, or by a hosting platform with an arbitrary working directory.
  */
 export const FRONTEND_DIST_DIR = fileURLToPath(new URL('../../frontend/dist/', import.meta.url));
 
