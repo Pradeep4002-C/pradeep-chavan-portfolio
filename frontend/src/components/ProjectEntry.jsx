@@ -71,7 +71,7 @@ export default function ProjectEntry({ project, featured = false, className = ''
       <article
         className={`grid gap-6 border-t border-line pt-9 sm:pt-11 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-stretch lg:gap-12 lg:pt-14 ${className}`}
       >
-        <ProjectArtwork type={project.artwork} />
+        <ProjectArtwork type={project.artwork} workflow={project.workflow} />
 
         <div className="flex min-w-0 flex-col justify-center">
           <ProjectCopy project={project} featured />
@@ -82,7 +82,7 @@ export default function ProjectEntry({ project, featured = false, className = ''
 
   return (
     <article className={`grid gap-5 sm:gap-6 ${className}`}>
-      <ProjectArtwork type={project.artwork} />
+      <ProjectArtwork type={project.artwork} workflow={project.workflow} />
 
       <div className="min-w-0">
         <ProjectCopy project={project} />

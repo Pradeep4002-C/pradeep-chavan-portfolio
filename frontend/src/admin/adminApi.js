@@ -77,6 +77,11 @@ export async function fetchProjects({ signal } = {}) {
   return projects;
 }
 
+export async function fetchProject(id, { signal } = {}) {
+  const payload = await getJson(`/admin/projects/${encodeURIComponent(id)}`, { signal });
+  return requireProject(payload?.data?.project);
+}
+
 export async function createProject(values, { signal } = {}) {
   const payload = await postJson('/admin/projects', values, { signal });
   return requireProject(payload?.data?.project);

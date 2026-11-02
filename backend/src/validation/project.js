@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ARTWORK_KEYS } from '../models/Project.js';
+import { ARTWORK_KEYS, WORKFLOW_LIMITS, WORKFLOW_STEP_TYPES } from '../models/Project.js';
 import { isHttpUrl } from '../lib/validators.js';
 
 /**
@@ -23,6 +23,66 @@ export const PROJECT_LIMITS = Object.freeze({
 
 // Mirrors the `match` rule on Project.slug so both layers agree.
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+const plainWorkflowText = (label, max) =>
+  z
+    .string({ error: `${label} must be text.` })
+    .trim()
+    .max(max, `${label} must be ${max} characters or fewer.`)
+    .refine((value) => !/[<>]/.test(value), `${label} cannot contain HTML or angle brackets.`);
+
+const workflowStepSchema = z
+  .object({
+    id: z
+      .string({ error: 'Each workflow step needs an id.' })
+      .trim()
+      .min(1, 'Each workflow step needs an id.')
+      .max(WORKFLOW_LIMITS.idMax, `Workflow step ids must be ${WORKFLOW_LIMITS.idMax} characters or fewer.`)
+      .regex(SLUG_PATTERN, 'Workflow step ids must use lowercase words separated by hyphens.'),
+    title: plainWorkflowText('Step title', WORKFLOW_LIMITS.titleMax).min(
+      1,
+      'Every workflow step needs a title.',
+    ),
+    description: plainWorkflowText('Step description', WORKFLOW_LIMITS.descriptionMax).default(''),
+    type: z.enum(WORKFLOW_STEP_TYPES, {
+      error: 'Choose a supported workflow step type.',
+    }),
+  })
+  .strict();
+
+const workflowSchema = z
+  .object({
+    steps: z
+      .array(workflowStepSchema)
+      .min(
+        WORKFLOW_LIMITS.minSteps,
+        `Add at least ${WORKFLOW_LIMITS.minSteps} workflow steps.`,
+      )
+      .max(
+        WORKFLOW_LIMITS.maxSteps,
+        `Use at most ${WORKFLOW_LIMITS.maxSteps} workflow steps.`,
+      )
+      .superRefine((steps, context) => {
+        const seen = new Set();
+        steps.forEach((step, index) => {
+          if (seen.has(step.id)) {
+            context.addIssue({
+              code: 'custom',
+              path: [index, 'id'],
+              message: 'Workflow step ids must be unique.',
+            });
+          }
+          seen.add(step.id);
+        });
+      }),
+  })
+  .strict();
+
+function workflowArtworkIssue(workflow) {
+  return !workflow || !Array.isArray(workflow.steps) || workflow.steps.length < WORKFLOW_LIMITS.minSteps
+    ? `A workflow illustration needs at least ${WORKFLOW_LIMITS.minSteps} steps.`
+    : null;
+}
 
 // Field rules are declared once, without defaults, so the create and update
 // schemas cannot drift. Create adds the defaults; update makes each optional.
@@ -95,6 +155,7 @@ const fields = {
       (value) => ARTWORK_KEYS.includes(value),
       'Choose one of the existing project illustrations.',
     ),
+  workflow: z.union([workflowSchema, z.null()]).optional(),
   order: z
     .number({ error: 'Display order must be a number.' })
     .int('Display order must be a whole number.')
@@ -120,10 +181,20 @@ export const projectCreateSchema = z
     demoUrl: fields.demoUrl,
     featured: fields.featured.default(false),
     artwork: fields.artwork,
+    workflow: fields.workflow,
     order: fields.order.default(0),
     published: fields.published.default(true),
   })
-  .strict();
+  .strict()
+  .superRefine((data, context) => {
+    if (data.artwork !== 'workflow') {
+      return;
+    }
+    const message = workflowArtworkIssue(data.workflow);
+    if (message) {
+      context.addIssue({ code: 'custom', path: ['workflow'], message });
+    }
+  });
 
 /**
  * Update contract: the same fields, all optional, with at least one present.
@@ -142,12 +213,25 @@ export const projectUpdateSchema = z
     demoUrl: fields.demoUrl.optional(),
     featured: fields.featured.optional(),
     artwork: fields.artwork.optional(),
+    workflow: fields.workflow,
     order: fields.order.optional(),
     published: fields.published.optional(),
   })
   .strict()
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Provide at least one field to change.',
+  })
+  .superRefine((data, context) => {
+    // When artwork is supplied, a partial update may omit workflow if the
+    // stored project already has one. The route checks that case against the
+    // database; here we reject an explicitly invalid or cleared workflow.
+    if (data.artwork !== 'workflow' || data.workflow === undefined) {
+      return;
+    }
+    const message = workflowArtworkIssue(data.workflow);
+    if (message) {
+      context.addIssue({ code: 'custom', path: ['workflow'], message });
+    }
   });
 
 /**
@@ -159,12 +243,19 @@ export function formatProjectIssues(error) {
   const fields = {};
 
   for (const issue of error.issues) {
+    const field = issue.path[0];
+
     if (issue.code === 'unrecognized_keys') {
-      fields.form ??= 'The request contained unsupported fields.';
+      // Unknown top-level keys are a request-shape problem. An unknown key
+      // nested inside a known object is reported on that field instead.
+      if (typeof field === 'string' && field !== '') {
+        fields[field] ??= `The ${field} value contains unsupported fields.`;
+      } else {
+        fields.form ??= 'The request contained unsupported fields.';
+      }
       continue;
     }
 
-    const field = issue.path[0];
     if (typeof field !== 'string' || field === '') {
       fields.form ??= issue.message;
       continue;

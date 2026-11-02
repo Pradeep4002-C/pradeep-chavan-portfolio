@@ -5,6 +5,7 @@ import {
   createProject,
   deleteProject,
   fetchOverview,
+  fetchProject,
   fetchProjects,
   fetchSession,
   loginAdmin,
@@ -47,6 +48,26 @@ test('fetchProjects reads the protected admin project list', async () => {
   assert.equal(calls[0].init.method, 'GET');
   assert.equal(projects.length, 1);
   assert.equal(projects[0].title, 'A');
+});
+
+test('fetchProject reads one saved project, including its workflow, for the editor', async () => {
+  const calls = mockFetch(() =>
+    jsonResponse({
+      data: {
+        project: {
+          id: 'a b',
+          title: 'Saved',
+          workflow: { steps: [{ id: 'step-1', title: 'Input', type: 'input' }] },
+        },
+      },
+    }),
+  );
+
+  const project = await fetchProject('a b');
+
+  assert.equal(calls[0].url, '/api/admin/projects/a%20b');
+  assert.equal(calls[0].init.method, 'GET');
+  assert.equal(project.workflow.steps[0].title, 'Input');
 });
 
 test('fetchOverview returns the overview payload and rejects an unreadable body', async () => {

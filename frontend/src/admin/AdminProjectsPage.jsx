@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import { deleteProject, fetchProjects, updateProject } from './adminApi.js';
 import { useAdminAuth } from './AdminAuthContext.jsx';
 import { AdminErrorState, AdminLoading, ConfirmDialog, EmptyState, Notice, PageHeader, dangerButtonClass, describeError } from './AdminUi.jsx';
-import ProjectFormDialog from './ProjectFormDialog.jsx';
 
 function TechnologySummary({ items }) {
   if (!Array.isArray(items) || items.length === 0) {
@@ -33,13 +33,22 @@ function StatusBadge({ published }) {
 
 export default function AdminProjectsPage() {
   const { markUnauthenticated } = useAdminAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [projects, setProjects] = useState([]);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
-  const [notice, setNotice] = useState(null);
-  const [dialog, setDialog] = useState(null);
+  const [notice, setNotice] = useState(location.state?.notice ?? null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [busyId, setBusyId] = useState(null);
+
+  // The editor returns a one-time success message through router state. Clear
+  // the state after reading it so a later refresh does not repeat old news.
+  useEffect(() => {
+    if (location.state?.notice) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.pathname, location.state, navigate]);
 
   const load = useCallback(
     async (signal, { silent = false } = {}) => {
@@ -136,13 +145,12 @@ export default function AdminProjectsPage() {
     }
   }
 
-  function handleSaved(saved, mode) {
-    setDialog(null);
-    setNotice({
-      tone: 'success',
-      message: mode === 'edit' ? `“${saved.title}” was updated.` : `“${saved.title}” was created.`,
-    });
-    load(undefined, { silent: true });
+  function openCreate() {
+    navigate('/admin/projects/new');
+  }
+
+  function openEdit(project) {
+    navigate(`/admin/projects/${encodeURIComponent(project.id)}/edit`);
   }
 
   return (
@@ -154,7 +162,7 @@ export default function AdminProjectsPage() {
         <Button variant="outline" size="sm" onClick={reload} disabled={status === 'loading'}>
           Refresh
         </Button>
-        <Button variant="solid" size="sm" onClick={() => setDialog({ mode: 'create' })}>
+        <Button variant="solid" size="sm" onClick={openCreate}>
           Add project
         </Button>
       </PageHeader>
@@ -180,7 +188,7 @@ export default function AdminProjectsPage() {
           title="No projects yet"
           message="Add your first project to make it available to the portfolio’s work section."
           action={
-            <Button variant="solid" size="sm" onClick={() => setDialog({ mode: 'create' })}>
+            <Button variant="solid" size="sm" onClick={openCreate}>
               Add project
             </Button>
           }
@@ -233,11 +241,7 @@ export default function AdminProjectsPage() {
                     <td className="px-4 py-3.5 text-muted">{project.order}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex flex-wrap justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setDialog({ mode: 'edit', project })}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => openEdit(project)}>
                           Edit
                         </Button>
                         <Button
@@ -285,11 +289,7 @@ export default function AdminProjectsPage() {
                   {project.featured ? 'Featured' : 'Not featured'} · Order {project.order}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDialog({ mode: 'edit', project })}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => openEdit(project)}>
                     Edit
                   </Button>
                   <Button
@@ -314,16 +314,6 @@ export default function AdminProjectsPage() {
           </ul>
         </>
       )}
-
-      {dialog ? (
-        <ProjectFormDialog
-          mode={dialog.mode}
-          project={dialog.project}
-          onClose={() => setDialog(null)}
-          onSaved={handleSaved}
-          onUnauthorized={markUnauthenticated}
-        />
-      ) : null}
 
       {deleteTarget ? (
         <ConfirmDialog

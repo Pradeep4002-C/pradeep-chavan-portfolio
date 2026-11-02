@@ -102,7 +102,9 @@ async function start() {
     // Never start listening without a database: a half-started API is worse
     // than a clear startup failure.
     failStartup('Database connection failed — the API was not started', {
+      code: 'DATABASE_UNAVAILABLE',
       error: error.message,
+      hint: 'Check your MongoDB service and configuration.',
     });
     return;
   }
@@ -139,8 +141,8 @@ async function start() {
   httpServer = app.listen(config.port);
 
   httpServer.on('listening', () => {
-    logger.info('API listening', {
-      port: config.port,
+    logger.success('API listening', {
+      url: `http://localhost:${config.port}`,
       env: config.nodeEnv,
       frontend: frontendBuilt ? 'enabled' : 'disabled',
     });

@@ -21,6 +21,11 @@ MongoDB-backed session and server-side authorization on every admin route.
 In production, Express serves both the API and the built frontend so cookies
 stay same-origin and no CORS configuration is required.
 
+Projects can use one of three fixed CSS/SVG illustrations or a data-driven
+workflow diagram. The workflow is built in the dedicated project editor from
+two to ten administrator-entered steps; it is not generated from the project
+name and does not use AI. See `docs/ARCHITECTURE.md` for the full data flow.
+
 ### Folder structure
 
 ```text
@@ -45,7 +50,8 @@ stay same-origin and no CORS configuration is required.
 │   │   ├── models/           Mongoose models
 │   │   ├── routes/           Public and administrator API routes
 │   │   └── validation/       Zod request schemas
-│   └── tests/                API integration tests
+│   └── tests/                API, logger, and serving tests
+├── docs/                     Owner, architecture, and interview guides
 ├── .env.example
 ├── .node-version
 ├── render.yaml
@@ -189,6 +195,13 @@ npm run preview:frontend
 npm start
 ```
 
+In development the server prints readable timestamps, levels, and indented
+details. Colour is used only in a real terminal and is disabled when `NO_COLOR`
+is set or output is redirected. In production every log entry is one JSON object
+per line. The logger redacts common secret fields and scrubs MongoDB URIs,
+Argon2 hashes, bearer tokens, cookies, and password assignments, but callers
+still must not pass private content.
+
 ## Database seeding
 
 Seed the curated profile, projects, and skill groups:
@@ -206,6 +219,12 @@ The script is idempotent:
 
 Education, certifications, and achievements are managed through the dashboard
 and are not part of the seed file.
+
+The seed command does not reset or delete administrator accounts. Before running
+it against a real database, review the current content read-only and obtain owner
+approval. Running it with an empty content database restores the initial profile,
+projects, and skill groups; it does not overwrite manually edited records whose
+stable key already exists.
 
 ## Create the first administrator
 
@@ -228,6 +247,26 @@ line argument or logged. The account is written to the database configured by
 `MONGODB_URI`.
 
 Then open `/admin/login` on the public origin and sign in.
+
+## Project editor and workflow artwork
+
+`/admin/projects` lists projects. Create and edit actions open dedicated pages:
+
+- `/admin/projects/new`
+- `/admin/projects/:id/edit`
+
+The editor uses normal document scrolling, keeps save/cancel reachable, loads
+saved values from the admin API, and confirms before discarding unsaved changes.
+Selecting the `workflow` artwork opens a builder with add, edit, remove, and
+reorder controls plus a live preview. Each of the 2–10 steps has a title,
+optional description, and one controlled type: `input`, `frontend`, `backend`,
+`database`, `service`, `process`, or `output`.
+
+The three existing artwork keys (`hostelcare`, `aquapredict`, and `expense`)
+still work unchanged. A workflow project with missing or malformed data uses a
+neutral fallback illustration rather than another project's drawing. See
+`docs/PROJECT_GUIDE.md` for owner instructions and `docs/ARCHITECTURE.md` for the
+data flow.
 
 ## Tests
 
@@ -403,6 +442,11 @@ API responses, confirm that `frontend/dist` exists and was built before startup.
 
 ## Documentation
 
+- `docs/PROJECT_GUIDE.md` — owner workflow, editor, seeding, troubleshooting,
+  and the learning guide.
+- `docs/ARCHITECTURE.md` — request, auth, contact, and workflow diagrams plus
+  model and deployment notes.
+- `docs/INTERVIEW_PREPARATION.md` — grounded explanations and interview Q&A.
 - `frontend/docs/structure-guide.md` — frontend folders and ownership.
 - `frontend/docs/design-notes.md` — visual and interaction decisions.
 - `.env.example` — configuration reference with no secrets.

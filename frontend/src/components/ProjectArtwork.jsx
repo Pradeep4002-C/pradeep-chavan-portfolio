@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import WorkflowArtwork, { NeutralProjectArtwork } from './WorkflowArtwork.jsx';
 
 /* Purpose-built illustrations, one per project.
 
@@ -329,8 +330,13 @@ function ExpenseArtwork() {
   );
 }
 
-/** Chooses the illustration named by the project data. */
-export default function ProjectArtwork({ type }) {
+/**
+ * Chooses the illustration named by the project data. The three purpose-built
+ * drawings remain untouched; `workflow` draws only the administrator's saved
+ * steps. A missing or invalid workflow uses a neutral fallback rather than
+ * borrowing another project's artwork or inventing an architecture.
+ */
+export default function ProjectArtwork({ type, workflow }) {
   switch (type) {
     case 'hostelcare':
       return <HostelCareArtwork />;
@@ -338,7 +344,9 @@ export default function ProjectArtwork({ type }) {
       return <AquaPredictArtwork />;
     case 'expense':
       return <ExpenseArtwork />;
+    case 'workflow':
+      return <WorkflowArtwork workflow={workflow} />;
     default:
-      return null;
+      return <NeutralProjectArtwork />;
   }
 }

@@ -28,16 +28,29 @@ export function getDatabaseStatus() {
  */
 export async function connectDatabase(uri) {
   mongoose.connection.on('error', (error) => {
-    logger.error('MongoDB connection error', { error: error.message });
+    // The initial connection failure is reported once by the startup catch.
+    // Later driver errors are important and still visible.
+    if (hasConnected) {
+      logger.error('MongoDB connection error', {
+        code: 'DATABASE_ERROR',
+        error: error.message,
+      });
+    }
   });
   mongoose.connection.on('disconnected', () => {
     if (hasConnected) {
-      logger.warn('MongoDB disconnected');
+      logger.warn('MongoDB disconnected', {
+        code: 'DATABASE_DISCONNECTED',
+        hint: 'The driver will attempt to reconnect automatically.',
+      });
     }
   });
   mongoose.connection.on('reconnected', () => {
     hasConnected = true;
-    logger.info('MongoDB reconnected');
+    logger.success('MongoDB reconnected', {
+      database: mongoose.connection.name,
+      host: mongoose.connection.host,
+    });
   });
 
   await mongoose.connect(uri, {
@@ -48,7 +61,7 @@ export async function connectDatabase(uri) {
   hasConnected = true;
 
   // Host and database name are not credentials; the URI itself is never logged.
-  logger.info('MongoDB connected', {
+  logger.success('MongoDB connected', {
     database: mongoose.connection.name,
     host: mongoose.connection.host,
   });

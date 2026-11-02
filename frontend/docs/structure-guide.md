@@ -24,7 +24,9 @@ frontend/
 │   ├── contact-api.test.js
 │   ├── portfolio-content.test.js
 │   ├── project-form.test.js
-│   └── resource-form.test.js
+│   ├── resource-form.test.js
+│   ├── workflow-render.test.js
+│   └── workflow.test.js
 ├── src/
 │   ├── admin/
 │   │   ├── AdminRoot.jsx
@@ -34,7 +36,8 @@ frontend/
 │   │   ├── AdminLoginPage.jsx
 │   │   ├── AdminOverviewPage.jsx
 │   │   ├── AdminProjectsPage.jsx
-│   │   ├── ProjectFormDialog.jsx
+│   │   ├── ProjectEditorPage.jsx
+│   │   ├── WorkflowStepBuilder.jsx
 │   │   ├── AdminMessagesPage.jsx
 │   │   ├── AdminProfilePage.jsx
 │   │   ├── AdminSkillsPage.jsx
@@ -125,10 +128,11 @@ This folder is the whole `/admin` area. It is imported lazily from `main.jsx`,
 reuses the shared design tokens and `Button`, and introduces no second UI
 framework.
 
-- **`AdminRoot.jsx`** — the router and route tree. It renders
+- **`AdminRoot.jsx`** — the data router and route tree. It renders
   `AdminAuthProvider`, keeps `/admin/login` public, and puts every other page
-  behind `ProtectedRoute` and `AdminLayout`. Unknown `/admin/*` paths redirect
-  to `/admin`.
+  behind `ProtectedRoute` and `AdminLayout`. Project editor routes are
+  `/admin/projects/new` and `/admin/projects/:id/edit`. Unknown `/admin/*`
+  paths redirect to `/admin`.
 - **`AdminAuthContext.jsx`** — the session state machine (`loading`,
   `authenticated`, `unauthenticated`, `error`). It initializes from
   `GET /api/auth/me` and exposes `login`, `logout`, and `markUnauthenticated`.
@@ -144,10 +148,15 @@ framework.
   message.
 - **`AdminOverviewPage.jsx`** — aggregate counts from `/api/admin/overview`.
 - **`AdminProjectsPage.jsx`** — project table/cards with refresh, create,
-  edit, publish/unpublish, and confirmed delete.
-- **`ProjectFormDialog.jsx`** — create/edit form for project fields, with
-  server field errors mapped back to inputs. It uses the shared dialog focus
-  lifecycle.
+  edit, publish/unpublish, and confirmed delete. Create and edit navigate to the
+  dedicated editor page instead of opening a modal.
+- **`ProjectEditorPage.jsx`** — full-page project editor with a breadcrumb,
+  visible heading, normal document scrolling, server field errors mapped back to
+  inputs, a sticky save/cancel bar, and a data-router blocker that prevents
+  unsaved edits from being discarded silently.
+- **`WorkflowStepBuilder.jsx`** — add, edit, remove, and reorder two to ten
+  workflow steps, choose a controlled step type, and see the same public
+  renderer in a live preview.
 - **`AdminMessagesPage.jsx`** — inbox with filters, pagination, expandable
   bodies, read toggles, and confirmed delete.
 - **`AdminProfilePage.jsx`** — profile editor with a list of biography
@@ -168,7 +177,9 @@ framework.
   Escape, and restores focus only when the opener still exists.
 - **`adminApi.js`** — typed wrappers over the shared client for overview,
   project, inbox, collection, and profile endpoints, with response validation.
-- **`projectForm.js`** — pure slug generation and technology parsing helpers.
+- **`projectForm.js`** — pure project values, slug generation, technology
+  parsing, client-side validation, workflow-step helpers, and API payload
+  construction. The server validates every value again.
 
 ### `src/components/`: reusable public building blocks
 
@@ -179,10 +190,16 @@ framework.
 - **`Navbar.jsx`** — desktop/mobile public navigation, resume link,
   `aria-current` tracking, Escape-to-close, and deep-link handling. The
   Background item appears only when public background content exists.
-- **`ProjectArtwork.jsx`** — purpose-built CSS/SVG illustrations selected by a
-  project's `artwork` value.
+- **`ProjectArtwork.jsx`** — the artwork switch. The original three
+  illustrations are unchanged; `workflow` renders the administrator's steps;
+  an unknown or unavailable illustration uses a neutral fallback.
+- **`WorkflowArtwork.jsx`** — accessible, CSS/SVG-only workflow diagram. It
+  renders a semantic ordered list, never interprets administrator text as HTML,
+  and uses a neutral fallback when no valid workflow exists.
+- **`workflow.js`** — controlled workflow type vocabulary, visual metadata,
+  validation, and reading-order summary used by the renderer and tests.
 - **`ProjectEntry.jsx`** — one project in the gallery, in featured or
-  supporting arrangement.
+  supporting arrangement. It passes the saved workflow to the artwork switch.
 - **`TechnologyTags.jsx`** — reusable project technology list.
 
 ### `src/sections/`: public page regions

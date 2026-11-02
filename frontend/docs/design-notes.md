@@ -67,6 +67,20 @@ from the administrator-managed records. There is no "Live demo" action unless a
 project record provides one; the repository link is otherwise the only project
 action.
 
+### Data-driven workflow artwork
+
+A project may use the `workflow` artwork instead of one of the three fixed
+drawings. The administrator enters two to ten steps with a title, optional short
+description, and one controlled type (`input`, `frontend`, `backend`, `database`,
+`service`, `process`, or `output`). The renderer draws the nodes, arrows, type
+colours, and glyphs from those values; it does not generate architecture from a
+project name.
+
+The diagram is an ordered list in the DOM, so its visual reading order and its
+screen-reader order match. Administrator text is rendered as text, never as
+HTML, SVG, CSS, or a URL. A `workflow` project with missing or malformed data
+uses a neutral abstract fallback, not another project's illustration.
+
 All interface icons are inline SVG rather than emoji or text arrows. The resume
 button is labelled "Download resume" and downloads the real PDF. The header
 brand is a "PC" monogram beside the name.

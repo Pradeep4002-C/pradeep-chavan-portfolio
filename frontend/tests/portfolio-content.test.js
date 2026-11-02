@@ -107,6 +107,68 @@ test('published projects and valid skills render from API data in order', () => 
   assert.deepEqual(result.skillGroups[1].items, ['Git', 'VS Code']);
 });
 
+test('workflow illustrations are normalised from API data and malformed steps fall back safely', () => {
+  const project = (workflow) => ({
+    title: 'Workflow project',
+    slug: 'workflow-project',
+    category: 'Web app',
+    summary: 'Summary',
+    description: 'Description',
+    technologies: ['React'],
+    repoUrl: 'https://example.com/workflow',
+    artwork: 'workflow',
+    workflow,
+    featured: false,
+    order: 1,
+  });
+
+  const valid = normalized({
+    projects: [
+      project({
+        steps: [
+          { id: 'step-1', title: 'User input', description: 'Form', type: 'input' },
+          { id: 'step-2', title: 'Stored', description: '', type: 'database' },
+        ],
+      }),
+    ],
+  });
+
+  assert.equal(valid.projects[0].artwork, 'workflow');
+  assert.deepEqual(
+    valid.projects[0].workflow.steps.map((step) => step.id),
+    ['step-1', 'step-2'],
+  );
+
+  const invalid = normalized({
+    projects: [
+      project({
+        steps: [
+          { id: 'step-1', title: 'Only one', type: 'input' },
+          { id: 'step-2', title: '<script>alert(1)</script>', type: 'output' },
+        ],
+      }),
+    ],
+  });
+
+  assert.equal(invalid.projects[0].artwork, 'workflow');
+  assert.equal(invalid.projects[0].workflow, null);
+
+  const legacy = normalized({
+    projects: [
+      {
+        title: 'Legacy project',
+        slug: 'legacy-project',
+        summary: 'Summary',
+        technologies: ['CSS'],
+        repoUrl: 'https://example.com/legacy',
+        artwork: 'expense',
+      },
+    ],
+  });
+
+  assert.equal(legacy.projects[0].workflow, null);
+});
+
 test('malformed or missing project and skill collections cannot revive seed data', () => {
   const result = normalizePortfolio({
     profile: {},

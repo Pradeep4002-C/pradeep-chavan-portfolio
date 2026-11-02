@@ -40,7 +40,7 @@ portfolioRouter.get('/', async (req, res) => {
       .lean(),
     Project.find({ published: true })
       .select(
-        'title slug category summary description technologies repoUrl demoUrl featured artwork order -_id',
+        'title slug category summary description technologies repoUrl demoUrl featured artwork workflow order -_id',
       )
       .sort({ order: 1, slug: 1 })
       .lean(),

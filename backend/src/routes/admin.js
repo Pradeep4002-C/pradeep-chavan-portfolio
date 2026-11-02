@@ -32,11 +32,28 @@ const ADMIN_PROJECT_FIELDS = [
   'demoUrl',
   'featured',
   'artwork',
+  'workflow',
   'order',
   'published',
   'createdAt',
   'updatedAt',
 ].join(' ');
+
+/** Serialises a workflow subdocument without exposing Mongoose internals. */
+export function toWorkflow(value) {
+  if (!value || !Array.isArray(value.steps) || value.steps.length === 0) {
+    return null;
+  }
+
+  return {
+    steps: value.steps.map((step) => ({
+      id: step.id,
+      title: step.title,
+      description: step.description ?? '',
+      type: step.type,
+    })),
+  };
+}
 
 /** The only project shape that leaves the administrator API. */
 export function toAdminProject(doc) {
@@ -54,6 +71,7 @@ export function toAdminProject(doc) {
     demoUrl: value.demoUrl ?? '',
     featured: Boolean(value.featured),
     artwork: value.artwork,
+    workflow: toWorkflow(value.workflow),
     order: Number.isFinite(value.order) ? value.order : 0,
     published: Boolean(value.published),
     createdAt: value.createdAt,
@@ -189,17 +207,38 @@ export function createAdminRouter({ clientOrigin } = {}) {
     }
 
     try {
-      const updated = await Project.findByIdAndUpdate(
-        id,
-        { $set: updates },
-        { returnDocument: 'after', runValidators: true, context: 'query' },
-      );
-
-      if (!updated) {
+      const project = await Project.findById(id);
+      if (!project) {
         res.status(404).json(PROJECT_NOT_FOUND);
         return;
       }
 
+      // Assign only the submitted keys. In particular, a PATCH without a
+      // `workflow` key leaves the stored workflow untouched.
+      for (const [key, value] of Object.entries(updates)) {
+        if (key === 'workflow' && value === null) {
+          project.set('workflow', undefined);
+        } else {
+          project.set(key, value);
+        }
+      }
+
+      // A partial update such as `{ artwork: "workflow" }` must rely on the
+      // workflow already stored on the document. Check the combined result,
+      // not just the submitted patch.
+      if (
+        project.artwork === 'workflow' &&
+        (!Array.isArray(project.workflow?.steps) || project.workflow.steps.length < 2)
+      ) {
+        res.status(400).json(
+          validationResponse({
+            workflow: 'A workflow illustration needs at least 2 steps.',
+          }),
+        );
+        return;
+      }
+
+      const updated = await project.save();
       res.status(200).json({ data: { project: toAdminProject(updated) } });
     } catch (error) {
       writeError(error, res, next, {

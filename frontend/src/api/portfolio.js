@@ -1,8 +1,9 @@
 import { profile as fallbackProfile } from '../data/portfolio.js';
+import { normalizeWorkflow } from '../components/workflow.js';
 import { getJson } from './client.js';
 
 // Mirrors the enum on the Project model and the renderers in ProjectArtwork.
-const ARTWORK_KEYS = new Set(['hostelcare', 'aquapredict', 'expense']);
+const ARTWORK_KEYS = new Set(['hostelcare', 'aquapredict', 'expense', 'workflow']);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ASSET_PATH_PATTERN = /^(?!\/)(?!.*\.\.)[A-Za-z0-9._~/-]+$/;
 
@@ -151,6 +152,7 @@ function normalizeProject(apiProject, index) {
     href: repoUrl,
     linkLabel: 'View source',
     artwork: ARTWORK_KEYS.has(apiProject.artwork) ? apiProject.artwork : null,
+    workflow: normalizeWorkflow(apiProject.workflow),
     featured: Boolean(apiProject.featured),
   };
 }
