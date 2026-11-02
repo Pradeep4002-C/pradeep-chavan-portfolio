@@ -588,6 +588,12 @@ test('deletes a project and confirms it no longer exists', async (t) => {
   assert.equal(await Project.countDocuments({ _id: stored._id }), 0);
   const reread = await request(server.base, `${PROJECTS_PATH}/${stored._id}`, { cookie });
   assert.equal(reread.response.status, 404);
+
+  const publicAfterDelete = await request(server.base, '/api/portfolio');
+  assert.equal(
+    publicAfterDelete.json.data.projects.some((project) => project.slug === 'doomed'),
+    false,
+  );
 });
 
 test('enforces the unique slug index at the database level', async (t) => {
@@ -714,4 +720,6 @@ test('serves 503 for the admin API when no session is configured', async (t) => 
   const result = await request(`http://127.0.0.1:${port}`, OVERVIEW_PATH);
   assert.equal(result.response.status, 503);
   assert.equal(result.json?.error?.code, 'SESSION_UNAVAILABLE');
+  assert.equal(result.response.headers.get('cache-control'), 'no-store');
+  assert.match(result.response.headers.get('vary') ?? '', /Cookie/i);
 });

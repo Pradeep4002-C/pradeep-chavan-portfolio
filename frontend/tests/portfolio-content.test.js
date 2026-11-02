@@ -118,6 +118,11 @@ test('malformed or missing project and skill collections cannot revive seed data
   assert.deepEqual(result.skillGroups, []);
 });
 
+test('a response without a data object is rejected instead of restoring bundled records', () => {
+  assert.throws(() => normalizePortfolio(null), /data object/);
+  assert.throws(() => normalizePortfolio('not-an-object'), /data object/);
+});
+
 test('an empty database biography keeps the approved About copy', () => {
   const cases = [[], ['', '   '], [null, 42], 'not-an-array', null, undefined];
 

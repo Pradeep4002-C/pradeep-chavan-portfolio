@@ -258,6 +258,8 @@ test('rejects a wrong password with the generic invalid-credentials response', a
 
   const { response, json } = await login(server.base, { password: 'Wrong-Password-123!' });
   assert.equal(response.status, 401);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.match(response.headers.get('vary') ?? '', /Cookie/i);
   assert.deepEqual(json, {
     error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' },
   });
