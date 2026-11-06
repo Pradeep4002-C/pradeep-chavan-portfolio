@@ -3,20 +3,26 @@
 ## Direction
 
 This is a developer portfolio, not a web version of the full resume. The page
-uses a clear Work → About → Background → Contact flow, with the work presented
-as the primary evidence and supporting detail kept compact.
+runs Hero → Selected work → Technical skills → About → Background → Contact,
+with the work presented as the primary evidence and supporting detail kept
+compact. The navigation uses the same order: Work, Skills, About, Background,
+Contact.
 
 ## Information hierarchy
 
-1. A personal greeting, a statement of what is built, and a direct route to
-   selected work.
+1. A static hero: the name, the role, a statement of what is built, the two
+   primary actions, and the professional links.
 2. A project gallery with one featured project and supporting entries, driven
    by the administrator-managed published projects.
-3. A compact About section with the approved introduction, biography, education
-   summary, and grouped technical skills.
-4. A Background section for database-managed education, certifications, and
-   achievements. It appears only when at least one record exists.
-5. One clear contact section, closing with the location as a small secondary
+3. A concise, database-driven Skills section that groups the technologies used
+   to support the project evidence.
+4. A compact, biography-only About section. Education metadata does not appear
+   here, so the degree is not stated twice.
+5. A Background section for database-managed education, certifications, and
+   achievements. It appears only when at least one record exists. With the
+   usual one degree and two certificates it uses a wider education card beside
+   two stacked certificate cards.
+6. One clear contact section, closing with the location as a small secondary
    line.
 
 The page does not attempt to reproduce every resume detail. The downloadable
@@ -26,18 +32,33 @@ dashboard and are confirmed by the public API.
 
 ## Hero decisions
 
-- The greeting is `Hello, I'm Pradeep Chavan`, revealed character by character
-  at roughly one character per 45ms after a short pause.
-- The cursor blinks only while typing and disappears when the greeting is
-  complete. The greeting is never erased or retyped.
-- The completed greeting stays visible, and a screen-reader-only copy always
-  contains the full text.
-- With `prefers-reduced-motion: reduce` the greeting is rendered complete
-  immediately, with no cursor. Enabling the setting mid-animation completes it
-  instantly.
-- There is no category or eyebrow label above the greeting, and no violet dot.
+- The hero opens with "HELLO, I'M" and types the name once at roughly 68 ms per
+  character, with a slightly longer beat after the space. The cursor blinks only
+  while typing and is removed at the final full stop, which keeps the accent.
+- The name is the `h1` and the largest element. An invisible copy of the finished
+  name reserves its final height, so the two-line heading at 320 px never
+  reflows as characters arrive.
+- The complete name is exposed once through an `sr-only` span; the spacer and the
+  animated text are hidden from the accessibility tree. The heading therefore
+  reads as "Pradeep Chavan." regardless of animation progress.
+- `prefers-reduced-motion` shows the finished name immediately with no cursor,
+  and switching the setting on mid-animation completes it at once.
+- The greeting, positioning line, introduction, actions, and links render on the
+  first paint. Nothing is gated behind the animation, and no timer is cleared
+  without a fallback.
+- A small positioning line separates the student identity from the full-stack
+  work: "Computer Science Engineering Student · Full-Stack Developer". A
+  database introduction that opens with the name is displayed without that
+  repeated leading clause; the stored record is never edited.
+- The primary action opens selected work and the secondary action downloads the
+  resume. Compact GitHub and LinkedIn links follow, with a screen-reader note
+  that they open in a new tab.
 - The hero counts on typography, spacing, and alignment. There are no decorative
   shapes, floating elements, or profile images.
+- At 320×568 the primary action is visible on the first screen. A longer
+  database-supplied introduction can push the resume action and the profile
+  links just below it; the sticky header keeps the resume action reachable
+  without scrolling back.
 
 ## Visual system
 
@@ -62,10 +83,15 @@ and supporting projects, but an administrator can publish, unpublish, reorder,
 or delete records. The public UI does not substitute bundled project data when
 the confirmed collection is empty or the API is unavailable.
 
-Project summaries, descriptions, technology lists, and repository links come
-from the administrator-managed records. There is no "Live demo" action unless a
-project record provides one; the repository link is otherwise the only project
-action.
+Project summaries, descriptions, technology lists, repository links, and demo
+links come from the administrator-managed records. An entry reads in one order:
+category, name, one-line summary, description, a labelled "Built with" list, then
+the available actions. A description containing blank-line-separated paragraphs
+renders as separate paragraphs, so problem, solution, and implementation can be
+read as distinct beats. A "View live demo" action appears only when the record
+supplies a valid HTTP(S) demo URL; the "View source code" action is otherwise the
+only project action. The site never invents a demo address, a deployment, or a
+user count.
 
 ### Data-driven workflow artwork
 
@@ -105,8 +131,10 @@ brand is a "PC" monogram beside the name.
 - The skip link and every in-page nav link land focus on the section they point
   at. Container targets suppress the focus ring where the scroll is the visible
   cue.
-- Project entries use one repository link action to avoid duplicated controls,
-  and the entry itself is not clickable.
+- Project entries offer at most two actions — a live demo when one exists and
+  the repository — and the entry itself is not clickable. Each action carries a
+  project-specific screen-reader label, so "View source code" is never announced
+  three times without context.
 - The showcase contains no image file and nothing that could be mistaken for an
   application screen. The inline SVG belongs to the drawings and the arrow
   inside each repository link.
@@ -123,10 +151,11 @@ approved static presentation. Projects, skills, education, certifications, and
 achievements are database-managed, so their initial state is empty and their
 confirmed state comes from `GET /api/portfolio`.
 
-The Work and About sections show concise, polite status messages during loading,
-when the API is unavailable, and when a successful response contains no
-records. This avoids reviving unpublished or deleted content and avoids a retry
-loop. The rest of the public page remains usable.
+The Work section shows concise, polite status messages during loading, when the
+API is unavailable, and when a successful response contains no records. Skills
+is optional and stays hidden until the API confirms useful groups. This avoids
+reviving unpublished or deleted content and avoids a retry loop. The rest of
+the public page remains usable.
 
 ## Styling approach
 

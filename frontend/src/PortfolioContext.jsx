@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { EMPTY_PORTFOLIO, fetchPortfolio } from './api/portfolio.js';
 
-const PortfolioContext = createContext(null);
+/* Exported so isolated render tests can supply a confirmed portfolio value
+   without starting the public API request. */
+export const PortfolioContext = createContext(null);
 
 export const PORTFOLIO_STATUS = Object.freeze({
   loading: 'loading',

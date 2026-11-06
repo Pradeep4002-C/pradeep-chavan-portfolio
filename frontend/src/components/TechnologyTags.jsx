@@ -6,11 +6,15 @@ export const tagClass =
   'rounded-full border border-line bg-paper px-2.5 py-1.5 text-[0.7rem] font-semibold text-[#56564f]';
 
 /** Reusable list of technologies shown beneath a project description. */
-export default function TechnologyTags({ items = [], label = 'Technologies used' }) {
+export default function TechnologyTags({
+  items = [],
+  label = 'Technologies used',
+  className = 'mt-5',
+}) {
   if (items.length === 0) return null;
 
   return (
-    <ul className="mt-5 flex flex-wrap gap-1.5" aria-label={label}>
+    <ul className={`flex flex-wrap gap-1.5 ${className}`} aria-label={label}>
       {items.map((item) => (
         <li key={item} className={tagClass}>
           {item}

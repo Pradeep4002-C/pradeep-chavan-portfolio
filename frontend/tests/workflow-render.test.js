@@ -94,3 +94,61 @@ test('workflow renderer keeps semantic order, safe text, and a neutral fallback'
   assert.match(supporting, /Output returns/);
   assert.doesNotMatch(supporting, /Neutral project illustration/);
 });
+
+test('project actions show a demo only when one is supplied, beside the repository link', async (t) => {
+  const { ProjectEntry } = await loadModules(t);
+  const project = {
+    number: '01',
+    category: 'Web application',
+    name: 'Project with a demo',
+    summary: 'Summary',
+    description: 'Description',
+    technologies: ['React'],
+    href: 'https://example.com/source',
+    demoHref: 'https://example.com/demo',
+    linkLabel: 'View source code',
+    artwork: 'expense',
+  };
+
+  const withDemo = renderToStaticMarkup(React.createElement(ProjectEntry, { project }));
+
+  assert.match(withDemo, /View live demo/);
+  assert.match(withDemo, /href="https:\/\/example\.com\/demo"/);
+  assert.match(withDemo, /View source code/);
+  assert.match(withDemo, /for Project with a demo \(opens in a new tab\)/);
+
+  const withoutDemo = renderToStaticMarkup(
+    React.createElement(ProjectEntry, { project: { ...project, demoHref: null } }),
+  );
+
+  assert.doesNotMatch(withoutDemo, /View live demo/);
+  assert.match(withoutDemo, /View source code/);
+});
+
+test('a multi-paragraph description renders as readable paragraphs', async (t) => {
+  const { ProjectEntry } = await loadModules(t);
+
+  const html = renderToStaticMarkup(
+    React.createElement(ProjectEntry, {
+      project: {
+        number: '01',
+        category: 'Web application',
+        name: 'Paragraph project',
+        summary: 'Summary',
+        description:
+          'Students submit a request.\n\nAdministrators triage it.\n\nStaff resolve it.',
+        technologies: ['React'],
+        href: 'https://example.com/source',
+        demoHref: null,
+        linkLabel: 'View source code',
+        artwork: 'expense',
+      },
+    }),
+  );
+
+  assert.match(
+    html,
+    /Students submit a request\.<\/p><p[^>]*>Administrators triage it\.<\/p><p[^>]*>Staff resolve it\./,
+  );
+  assert.match(html, /Built with/);
+});

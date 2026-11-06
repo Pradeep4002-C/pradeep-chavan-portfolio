@@ -73,6 +73,17 @@ Published project serialization includes `title`, `slug`, `category`, `summary`,
 `workflow`, and `order`. Workflow steps contain only `id`, `title`,
 `description`, and `type`; Mongo subdocument ids are disabled.
 
+`frontend/src/api/portfolio.js` normalises that payload before any component
+sees it: text is trimmed, malformed records are dropped, and `demoUrl` becomes
+`demoHref` only when it is a parseable HTTP(S) URL. A `javascript:`, `mailto:`,
+or empty value therefore cannot produce a public demo button.
+
+The public page is a single composition: `App` renders Hero, Work, Skills,
+About, Background, Contact, and Footer; `PortfolioContext` supplies the
+normalised collections; `Navbar` derives its links from the same visibility
+helpers the sections use, so no link can point at a section that is not
+rendered.
+
 ### Administrator sign-in
 
 ```text

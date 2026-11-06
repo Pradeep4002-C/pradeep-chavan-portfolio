@@ -24,7 +24,9 @@ frontend/
 │   ├── contact-api.test.js
 │   ├── portfolio-content.test.js
 │   ├── project-form.test.js
+│   ├── public-page.test.js
 │   ├── resource-form.test.js
+│   ├── skills-content.test.js
 │   ├── workflow-render.test.js
 │   └── workflow.test.js
 ├── src/
@@ -74,6 +76,8 @@ frontend/
 │   │   ├── Contact.jsx
 │   │   ├── Footer.jsx
 │   │   ├── Hero.jsx
+│   │   ├── Skills.jsx
+│   │   ├── skillsContent.js
 │   │   └── Work.jsx
 │   ├── App.jsx
 │   ├── main.jsx
@@ -189,7 +193,7 @@ framework.
 - **`Brand.jsx`** — the portfolio wordmark.
 - **`Navbar.jsx`** — desktop/mobile public navigation, resume link,
   `aria-current` tracking, Escape-to-close, and deep-link handling. The
-  Background item appears only when public background content exists.
+  Skills and Background items appear only when their public content exists.
 - **`ProjectArtwork.jsx`** — the artwork switch. The original three
   illustrations are unchanged; `workflow` renders the administrator's steps;
   an unknown or unavailable illustration uses a neutral fallback.
@@ -199,22 +203,38 @@ framework.
 - **`workflow.js`** — controlled workflow type vocabulary, visual metadata,
   validation, and reading-order summary used by the renderer and tests.
 - **`ProjectEntry.jsx`** — one project in the gallery, in featured or
-  supporting arrangement. It passes the saved workflow to the artwork switch.
+  supporting arrangement. It splits a blank-line-separated description into
+  paragraphs, labels the technology list "Built with", passes the saved workflow
+  to the artwork switch, and renders a demo action only when the project has a
+  valid demo URL.
 - **`TechnologyTags.jsx`** — reusable project technology list.
 
 ### `src/sections/`: public page regions
 
-- **`Hero.jsx`** — typewriter greeting, main statement, and portfolio links.
+- **`Hero.jsx`** — name-led hero: "HELLO, I'M" greeting, a once-only typed name
+  with a blinking cursor, student/full-stack positioning, database introduction,
+  work/resume actions, and GitHub/LinkedIn links. Reduced motion shows the full
+  name immediately.
+- **`heroCopy.js`** — removes a leading self-introduction that would repeat the
+  displayed name, so the stored profile introduction is shown without editing the
+  record.
 - **`Work.jsx`** — selected projects. It renders a stable loading, unavailable,
   or empty state while projects are not confirmed, and never falls back to seed
   records.
-- **`About.jsx`** — approved About statement, database headline and biography
-  when present, education summary, and database skill groups with the same
-  confirmed/empty/unavailable handling.
+- **`Skills.jsx`** — database-managed skill groups, organised for quick
+  scanning. It renders only after the public API confirms useful groups.
+- **`skillsContent.js`** — shared Skills visibility rule used by the section
+  and navigation, so a link cannot point to content that is not rendered.
+- **`About.jsx`** — approved About statement, database headline, and biography
+  when present. It renders no institution, degree, year, score, or location, so
+  education is stated once, in Background.
 - **`Background.jsx`** — public education, certification, and achievement
-  presentation. It renders only when at least one collection has a record.
+  presentation. It renders only when at least one collection has a record. One
+  degree and two certificates produce a wide education card beside stacked
+  certificate cards; the layout collapses to a single column on small screens.
 - **`backgroundContent.js`** — pure formatting and visibility helpers used by
-  `Background`, `Navbar`, and `About`.
+  `Background` and `Navbar`. `formatCgpa` normalises stored scores such as
+  `CGPA: 8.61` to `8.61 / 10`.
 - **`Contact.jsx`** — accessible contact form with a honeypot, double-submit
   guard, progress live region, and values retained on failure.
 - **`Footer.jsx`** — copyright, profile links, and back-to-top link.

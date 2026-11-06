@@ -3,9 +3,24 @@ import Button from './Button.jsx';
 import ProjectArtwork from './ProjectArtwork.jsx';
 import TechnologyTags from './TechnologyTags.jsx';
 
+/* A stored description is one field, but an administrator may write several
+   paragraphs in it separated by a blank line. Splitting there keeps a long
+   problem/solution/implementation description readable without a schema change,
+   while a single-paragraph description renders exactly as before. */
+function descriptionParagraphs(value) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return [];
+
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.replace(/\s*\n\s*/g, ' ').trim())
+    .filter(Boolean);
+}
+
 /* The written half of an entry, in one place so the featured arrangement and the
    supporting arrangement cannot drift apart in wording, order, or spacing. */
 function ProjectCopy({ project, featured = false }) {
+  const paragraphs = descriptionParagraphs(project.description);
   return (
     <>
       <p className="text-kicker font-bold uppercase tracking-[0.12em] text-subtle">
@@ -30,27 +45,65 @@ function ProjectCopy({ project, featured = false }) {
         {project.summary}
       </p>
 
-      <p className="mt-2.5 max-w-[600px] text-[0.95rem] leading-relaxed text-muted">
-        {project.description}
-      </p>
+      {paragraphs.length > 0 ? (
+        <div className="mt-2.5 max-w-[600px] space-y-2.5">
+          {paragraphs.map((paragraph, index) => (
+            <p key={index} className="text-[0.95rem] leading-relaxed text-muted">
+              {paragraph}
+            </p>
+          ))}
+        </div>
+      ) : null}
 
-      <TechnologyTags
-        items={project.technologies}
-        label={`Technologies used in ${project.name}`}
-      />
+      {project.technologies.length > 0 ? (
+        <div className="mt-5">
+          <p className="text-[0.64rem] font-bold uppercase tracking-[0.12em] text-subtle">
+            Built with
+          </p>
+          <TechnologyTags
+            items={project.technologies}
+            label={`Technologies used in ${project.name}`}
+            className="mt-2"
+          />
+        </div>
+      ) : null}
 
-      {project.href && (
-        <Button
-          className="mt-6 self-start"
-          href={project.href}
-          size="sm"
-          variant="outline"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {project.linkLabel} <Arrow diagonal />
-        </Button>
-      )}
+      {project.href || project.demoHref ? (
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          {project.demoHref ? (
+            <Button
+              className="self-start"
+              href={project.demoHref}
+              size="sm"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View live demo <Arrow diagonal />
+              <span className="sr-only">
+                {' '}
+                for {project.name} (opens in a new tab)
+              </span>
+            </Button>
+          ) : null}
+
+          {project.href ? (
+            <Button
+              className="self-start"
+              href={project.href}
+              size="sm"
+              variant="outline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {project.linkLabel} <Arrow diagonal />
+              <span className="sr-only">
+                {' '}
+                for {project.name} (opens in a new tab)
+              </span>
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </>
   );
 }

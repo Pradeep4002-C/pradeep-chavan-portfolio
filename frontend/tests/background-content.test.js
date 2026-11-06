@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  formatCgpa,
   formatPeriod,
   hasBackgroundContent,
-  summarizeEducation,
 } from '../src/sections/backgroundContent.js';
 
 test('background content exists only when a collection holds a record', () => {
@@ -27,32 +27,11 @@ test('formatPeriod renders complete, partial, and missing periods', () => {
   assert.equal(formatPeriod('2023', 2027), '2027');
 });
 
-test('summarizeEducation mirrors the approved one-line format', () => {
-  assert.equal(
-    summarizeEducation({
-      institution: 'K.L.S. Gogte Institute of Technology',
-      field: 'Computer Science Engineering',
-      startYear: 2023,
-      endYear: 2027,
-    }),
-    'Computer Science Engineering · K.L.S. Gogte Institute of Technology · 2023–2027',
-  );
-});
-
-test('summarizeEducation falls back to the qualification and omits empty parts', () => {
-  assert.equal(
-    summarizeEducation({ institution: 'Institute', qualification: 'B.E.' }),
-    'B.E. · Institute',
-  );
-  assert.equal(summarizeEducation({ institution: 'Institute' }), 'Institute');
-  assert.equal(
-    summarizeEducation({ institution: 'Institute', field: '   ', qualification: 'B.E.' }),
-    'B.E. · Institute',
-  );
-});
-
-test('summarizeEducation refuses records without an institution', () => {
-  assert.equal(summarizeEducation(null), null);
-  assert.equal(summarizeEducation({}), null);
-  assert.equal(summarizeEducation({ institution: '   ', qualification: 'B.E.' }), null);
+test('formatCgpa adds the ten-point scale only to a plain numeric score', () => {
+  assert.equal(formatCgpa('8.61'), '8.61 / 10');
+  assert.equal(formatCgpa('CGPA: 8.61'), '8.61 / 10');
+  assert.equal(formatCgpa('8.61/10'), '8.61 / 10');
+  assert.equal(formatCgpa('First class'), 'First class');
+  assert.equal(formatCgpa('   '), null);
+  assert.equal(formatCgpa(null), null);
 });

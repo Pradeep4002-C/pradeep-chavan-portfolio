@@ -42,8 +42,8 @@ export default function Work() {
             </h2>
           </div>
           <p className="max-w-[350px] text-[0.92rem] leading-relaxed text-muted lg:mb-1">
-            Web applications, workflow automation, and applied machine learning — each project
-            starts with a problem worth solving.
+            Full-stack development, applied machine learning, and workflow automation. Source
+            code is linked for every project.
           </p>
         </div>
 
@@ -85,7 +85,7 @@ export default function Work() {
 
         <div className="mt-8 flex flex-col items-start gap-4 border-t border-line-strong pt-6 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-[0.82rem] text-muted">
-            More experiments and code live on GitHub.
+            More projects and code are on GitHub.
           </span>
           <a
             className="group inline-flex items-center gap-1.5 text-[0.82rem] font-bold text-ink transition-ui hover:text-accent"

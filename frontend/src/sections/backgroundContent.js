@@ -1,8 +1,8 @@
 /**
  * Presentation helpers for the public Background section.
  *
- * They stay outside the component so the visibility rule, the date formatting,
- * and the compact education line can be checked without a DOM.
+ * They stay outside the component so the visibility rule, date formatting,
+ * and score presentation can be checked without a DOM.
  */
 
 function asText(value) {
@@ -42,23 +42,22 @@ export function formatPeriod(startYear, endYear) {
 }
 
 /**
- * One-line summary used by the About section. Mirrors the approved line
- * ("field · institution · years") and returns null when a record has no
- * institution to name, so the bundled copy can stay in place.
+ * Presents a plain numeric CGPA with its scale. Existing non-numeric score
+ * formats are preserved rather than guessed, and an existing scale is never
+ * duplicated. This keeps the public presentation driven by stored data.
  */
-export function summarizeEducation(record) {
-  if (!record || typeof record !== 'object') {
+export function formatCgpa(score) {
+  const value = asText(score);
+  if (!value) {
     return null;
   }
 
-  const institution = asText(record.institution);
-  if (!institution) {
-    return null;
+  const withoutLabel = value.replace(/^cgpa\s*:?\s*/i, '').trim();
+  if (/^\d+(?:\.\d+)?$/.test(withoutLabel)) {
+    return `${withoutLabel} / 10`;
   }
-
-  const programme = asText(record.field) ?? asText(record.qualification);
-
-  return [programme, institution, formatPeriod(record.startYear, record.endYear)]
-    .filter(Boolean)
-    .join(' · ');
+  if (/^\d+(?:\.\d+)?\s*\/\s*10$/.test(withoutLabel)) {
+    return withoutLabel.replace(/\s*\/\s*/, ' / ');
+  }
+  return value;
 }

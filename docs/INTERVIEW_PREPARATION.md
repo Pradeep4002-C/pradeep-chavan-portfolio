@@ -54,6 +54,27 @@ The public site treats the database as authoritative. If there are no published
 projects, it shows an empty state; it does not restore seed data. That prevents a
 deleted or unpublished project from reappearing.
 
+## Public presentation decisions
+
+- The page order is Hero → Work → Skills → About → Background → Contact, and the
+  navigation repeats it. Projects come first because they are the evidence.
+- The hero is static. I removed the typewriter greeting because it delayed the
+  name, added no information, and pushed the actions below the fold on a small
+  phone. The name is the `h1`, the role is a kicker, and the profile introduction
+  says what I build.
+- About is biography only. The degree, years, CGPA, and location live in
+  Background, from the education record, so the same facts are not stated twice
+  in two visual styles.
+- Skills are grouped by category and rendered as text. There are no percentage
+  bars or invented proficiency levels; the database stores names, not scores.
+- A project shows a live-demo action only when its record has a valid HTTP(S)
+  demo URL. Repository links are always real. I do not claim users, metrics,
+  business impact, or deployment that the record does not contain.
+- Responsive checks measured horizontal overflow, section heights, and hero
+  action positions at 320×568, 375×667, 768×600, 1024×768, 1280×720, 1366×768,
+  and 1440×900. I can describe the method without claiming a native device or a
+  screen reader I did not use.
+
 ## Data and control flow questions
 
 ### Why did you replace the modal with a page?

@@ -12,11 +12,11 @@ export const RESOURCE_CONFIGS = {
   skills: {
     key: 'skills',
     title: 'Skills',
-    description: 'Skill groups shown in the public About section.',
+    description: 'Skill groups shown in the public Skills section.',
     addLabel: 'Add skill group',
     singular: 'skill group',
     emptyTitle: 'No skill groups yet',
-    emptyMessage: 'Add a skill group to publish skills in the About section.',
+    emptyMessage: 'Add a skill group to publish skills in the Skills section.',
     api: skillGroupsApi,
     fields: [
       {

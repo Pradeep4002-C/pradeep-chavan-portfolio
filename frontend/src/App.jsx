@@ -4,6 +4,7 @@ import Background from './sections/Background.jsx';
 import Contact from './sections/Contact.jsx';
 import Footer from './sections/Footer.jsx';
 import Hero from './sections/Hero.jsx';
+import Skills from './sections/Skills.jsx';
 import Work from './sections/Work.jsx';
 import { PortfolioProvider } from './PortfolioContext.jsx';
 
@@ -22,6 +23,7 @@ export default function App() {
       <main id="main-content" tabIndex={-1} className="focus:outline-none">
         <Hero />
         <Work />
+        <Skills />
         <About />
         <Background />
         <Contact />

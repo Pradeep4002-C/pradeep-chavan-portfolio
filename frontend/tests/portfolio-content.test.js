@@ -107,6 +107,30 @@ test('published projects and valid skills render from API data in order', () => 
   assert.deepEqual(result.skillGroups[1].items, ['Git', 'VS Code']);
 });
 
+test('a project exposes a demo action only for a valid http(s) demo URL', () => {
+  const project = {
+    title: 'Demo project',
+    slug: 'demo-project',
+    technologies: ['React'],
+    repoUrl: 'https://example.com/repo',
+    artwork: 'hostelcare',
+  };
+
+  const { projects } = normalized({
+    projects: [
+      { ...project, demoUrl: '  https://example.com/demo  ' },
+      { ...project, slug: 'no-demo' },
+      { ...project, slug: 'script-demo', demoUrl: 'javascript:alert(1)' },
+      { ...project, slug: 'mail-demo', demoUrl: 'mailto:someone@example.com' },
+    ],
+  });
+
+  assert.equal(projects[0].demoHref, 'https://example.com/demo');
+  assert.equal(projects[1].demoHref, null);
+  assert.equal(projects[2].demoHref, null);
+  assert.equal(projects[3].demoHref, null);
+});
+
 test('workflow illustrations are normalised from API data and malformed steps fall back safely', () => {
   const project = (workflow) => ({
     title: 'Workflow project',

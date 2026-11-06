@@ -1,17 +1,9 @@
-import { createApp } from './app.js';
-import { ConfigError, ENV_FILE_PATH, loadEnv } from './config/env.js';
-import { connectDatabase, disconnectDatabase } from './config/db.js';
-import { createSessionMiddleware, createSessionStore } from './config/session.js';
-import { FRONTEND_DIST_DIR, isFrontendBuilt } from './frontend.js';
+import { disconnectDatabase } from './config/db.js';
 import { logger } from './lib/logger.js';
+import { startServer } from './startServer.js';
 
 let httpServer = null;
 let shuttingDown = false;
-
-function failStartup(message, context = {}) {
-  logger.error(message, context);
-  process.exitCode = 1;
-}
 
 /**
  * Stops accepting connections, closes the HTTP server, then disconnects from
@@ -51,107 +43,22 @@ async function shutdown(signal, exitCode = 0) {
   }
 }
 
+function handleServerError(error) {
+  logger.error('HTTP server error', { error: error.message });
+  shutdown('http-server-error', 1);
+}
+
 async function start() {
-  let config;
-
-  try {
-    config = loadEnv();
-  } catch (error) {
-    if (error instanceof ConfigError) {
-      failStartup('Invalid environment configuration', {
-        envFile: ENV_FILE_PATH,
-        issues: error.issues,
-        hint: 'Copy .env.example to .env in the repository root and set the required values.',
-      });
-      return;
-    }
-    throw error;
-  }
-
-  logger.info('Environment loaded', {
-    env: config.nodeEnv,
-    port: config.port,
-    envFile: config.envFilePath,
-    envFileExists: config.envFileExists,
+  const started = await startServer({
+    onServerCreated(server) {
+      httpServer = server;
+      server.on('error', handleServerError);
+    },
   });
 
-  // A production process is expected to serve the website as well as the API.
-  // Failing here is clearer than a deploy that appears healthy while every
-  // browser request receives a JSON 404.
-  const frontendBuilt = isFrontendBuilt();
-  if (config.isProduction && !frontendBuilt) {
-    failStartup('Frontend build not found — the server was not started', {
-      expected: FRONTEND_DIST_DIR,
-      hint: 'Run `npm run build:frontend` (or `npm run build`) before starting the production server.',
-    });
+  if (!started) {
     return;
   }
-
-  if (config.isProduction && !config.trustProxy) {
-    // Not fatal: the process may terminate TLS itself. Behind a reverse proxy
-    // (including Render), trust-proxy must be enabled for req.protocol and the
-    // Secure session cookie to be correct.
-    logger.warn('Production is running without TRUST_PROXY', {
-      hint: 'Set TRUST_PROXY=true when a single HTTPS reverse proxy terminates TLS in front of this process.',
-    });
-  }
-
-  try {
-    await connectDatabase(config.mongodbUri);
-  } catch (error) {
-    // Never start listening without a database: a half-started API is worse
-    // than a clear startup failure.
-    failStartup('Database connection failed — the API was not started', {
-      code: 'DATABASE_UNAVAILABLE',
-      error: error.message,
-      hint: 'Check your MongoDB service and configuration.',
-    });
-    return;
-  }
-
-  let app;
-
-  try {
-    // Reuse the established Mongoose connection/client for the session store.
-    // Creating this before listen guarantees a bad session secret or store
-    // fails startup instead of producing an unauthenticated API.
-    const sessionStore = createSessionStore();
-    const sessionMiddleware = createSessionMiddleware({
-      secret: config.sessionSecret,
-      store: sessionStore,
-      isProduction: config.isProduction,
-      trustProxy: config.trustProxy,
-    });
-
-    app = createApp({
-      trustProxy: config.trustProxy,
-      session: {
-        middleware: sessionMiddleware,
-        isProduction: config.isProduction,
-        clientOrigin: config.clientOrigin,
-      },
-    });
-  } catch (error) {
-    failStartup('Authentication session configuration failed — the API was not started', {
-      error: error.message,
-    });
-    return;
-  }
-
-  httpServer = app.listen(config.port);
-
-  httpServer.on('listening', () => {
-    logger.success('API listening', {
-      url: `http://localhost:${config.port}`,
-      env: config.nodeEnv,
-      frontend: frontendBuilt ? 'enabled' : 'disabled',
-    });
-  });
-
-  httpServer.on('error', (error) => {
-    logger.error('HTTP server error', { error: error.message });
-    shutdown('http-server-error', 1);
-  });
 }
 
 process.on('SIGINT', () => {

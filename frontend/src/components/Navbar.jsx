@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePortfolio } from '../PortfolioContext.jsx';
 import { hasBackgroundContent } from '../sections/backgroundContent.js';
+import { hasSkillGroups } from '../sections/skillsContent.js';
 import Brand from './Brand.jsx';
 import Button from './Button.jsx';
 import Container from './Container.jsx';
@@ -8,6 +9,7 @@ import DownloadIcon from './DownloadIcon.jsx';
 
 const SECTION_LABELS = {
   work: 'Work',
+  skills: 'Skills',
   about: 'About',
   background: 'Background',
   contact: 'Contact',
@@ -34,15 +36,19 @@ function linkClass(isActive) {
 }
 
 export default function Navbar() {
-  const { profile, education, certifications, achievements } = usePortfolio();
-  // `background` joins the navigation only while the public section exists, so
-  // a link can never point at an element that is not rendered.
-  const sectionKey = hasBackgroundContent({ education, certifications, achievements })
-    ? 'work about background contact'
-    : 'work about contact';
-  const navSections = sectionKey
-    .split(' ')
-    .map((id) => ({ id, label: SECTION_LABELS[id] }));
+  const { profile, skillGroups, education, certifications, achievements } = usePortfolio();
+  // Optional sections join the navigation only while their public content
+  // exists, so a link can never point at an element that is not rendered.
+  const sectionKey = [
+    'work',
+    hasSkillGroups(skillGroups) ? 'skills' : null,
+    'about',
+    hasBackgroundContent({ education, certifications, achievements }) ? 'background' : null,
+    'contact',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const navSections = sectionKey.split(' ').map((id) => ({ id, label: SECTION_LABELS[id] }));
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeId, setActiveId] = useState(() =>
     typeof window === 'undefined' ? '' : window.location.hash.slice(1),
@@ -234,7 +240,7 @@ export default function Navbar() {
             href={resumeHref}
             size="sm"
             variant="outline"
-            download="Pradeep-Chavan-Resume.pdf"
+            download="Pradeep_Chavan_Resume.pdf"
             onClick={() => {
               setMenuOpen(false);
               // The panel is hidden as the download starts, so keep focus in the

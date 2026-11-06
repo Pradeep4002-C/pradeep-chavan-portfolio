@@ -1,12 +1,14 @@
 export const profile = {
   name: 'Pradeep Chavan',
   email: 'chavanpradeep096@gmail.com',
-  intro: 'I’m Pradeep, a Computer Science Engineering student who turns practical problems into full-stack applications, workflow automations, and data-driven tools.',
+  intro:
+    'I turn practical problems into full-stack applications, workflow automations, and data-driven tools.',
   /* The approved About copy. These paragraphs render until the database profile
-     supplies a non-empty biography, so the section is never blank. */
+     supplies a non-empty biography, so the section is never blank. Education
+     fields deliberately do not appear here; they belong to Background. */
   bio: [
     'I learn best by making things — figuring out how interfaces, backend systems, automation, and data-driven ideas come together.',
-    'I’m building my foundations in software engineering while turning what I learn into projects. I care about clear problem-solving, maintainable code, and making software that is genuinely useful.',
+    'I’m building my foundations in software engineering while turning what I learn into projects. I care about clear problem-solving, maintainable code, and making software that is genuinely useful. I’m especially interested in full-stack architecture, API design, and automation that removes repetitive work.',
   ],
   location: 'Belgaum, Karnataka, India',
   github: 'https://github.com/Pradeep4002-C',
@@ -14,7 +16,6 @@ export const profile = {
   leetcode: 'https://leetcode.com/u/Pradeep_Chavan/',
   // Files inside public/ are served from the site's base URL.
   resume: 'resume.pdf',
-  education: 'Computer Science Engineering · K.L.S. Gogte Institute of Technology · 2023–2027',
 };
 
 /* Repository links match the hyperlinks in the supplied resume. Every summary,
@@ -36,7 +37,7 @@ export const projects = [
       'Students raise complaints with optional image evidence, administrators triage and assign work with ML-assisted priority suggestions, and maintenance staff update progress with completion proof.',
     technologies: ['React', 'Node.js', 'Express', 'MongoDB'],
     href: 'https://github.com/Pradeep4002-C/hostel-management-system',
-    linkLabel: 'View source',
+    linkLabel: 'View source code',
     artwork: 'hostelcare',
     featured: true,
   },
@@ -50,7 +51,7 @@ export const projects = [
       'A Flask API loads a saved scikit-learn HistGradientBoostingRegressor and returns an estimated biological oxygen demand with a safe, moderate, or polluted status band.',
     technologies: ['Python', 'Flask', 'scikit-learn', 'React'],
     href: 'https://github.com/Pradeep4002-C/AquaPredict-BOD-Monitoring-System',
-    linkLabel: 'View source',
+    linkLabel: 'View source code',
     artwork: 'aquapredict',
   },
   {
@@ -63,7 +64,7 @@ export const projects = [
       'The workflow reads expense rows from Excel, processes and categorizes them, generates a summary report, and emails the formatted report as an attachment.',
     technologies: ['UiPath', 'Excel', 'Email automation'],
     href: 'https://github.com/Pradeep4002-C/rpa-expense-tracker',
-    linkLabel: 'View source',
+    linkLabel: 'View source code',
     artwork: 'expense',
   },
 ];

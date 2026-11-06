@@ -129,6 +129,9 @@ function normalizeProject(apiProject, index) {
   const slug = asText(apiProject.slug);
   const title = asText(apiProject.title);
   const repoUrl = asHttpUrl(apiProject.repoUrl);
+  // A demo is optional, but it must be a real http(s) address before the public
+  // card offers a button. No fallback demo link is ever invented.
+  const demoUrl = asHttpUrl(apiProject.demoUrl);
 
   // A project without a stable key, a title, or a genuine repository link is
   // not renderable, so keep it out rather than showing a broken card.
@@ -150,7 +153,8 @@ function normalizeProject(apiProject, index) {
     description: asText(apiProject.description) ?? '',
     technologies,
     href: repoUrl,
-    linkLabel: 'View source',
+    demoHref: demoUrl,
+    linkLabel: 'View source code',
     artwork: ARTWORK_KEYS.has(apiProject.artwork) ? apiProject.artwork : null,
     workflow: normalizeWorkflow(apiProject.workflow),
     featured: Boolean(apiProject.featured),

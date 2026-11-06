@@ -29,7 +29,7 @@ const CARDS = [
   {
     key: 'totalSkillGroups',
     label: 'Skill groups',
-    hint: 'Groups shown in About',
+    hint: 'Groups shown in Skills',
     to: '/admin/skills',
     action: 'Manage skills',
   },
@@ -45,7 +45,7 @@ const CARDS = [
 const QUICK_LINKS = [
   { to: '/admin/projects/new', label: 'Add a project', detail: 'Create a new portfolio entry.' },
   { to: '/admin/messages', label: 'Read messages', detail: 'Review contact form submissions.' },
-  { to: '/admin/skills', label: 'Edit skills', detail: 'Update the About section groups.' },
+  { to: '/admin/skills', label: 'Edit skills', detail: 'Update the Skills section groups.' },
   { to: '/admin/profile', label: 'Edit profile', detail: 'Update the introduction and biography.' },
 ];
 

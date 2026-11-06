@@ -24,14 +24,6 @@
   --text-display: clamp(3.25rem, 8.4vw, 7rem);
   --text-headline: clamp(2.6rem, 5.4vw, 4.75rem);
   --text-title: clamp(1.65rem, 2.7vw, 2.5rem);
-
-  --animate-blink: blink 1s step-end infinite;
-
-  @keyframes blink {
-    50% {
-      opacity: 0;
-    }
-  }
 }
 
 /* Hover/focus colour transition for interactive elements.
@@ -44,6 +36,27 @@
   transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
   transition-timing-function: var(--default-transition-timing-function);
   transition-duration: var(--default-transition-duration);
+}
+
+/* The hero's typing cursor. It is a single, slow opacity blink with no motion;
+   the reduced-motion guard below shortens it, and the component removes the
+   cursor entirely once the name is complete. */
+@keyframes hero-cursor-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  95% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@utility animate-blink {
+  animation: hero-cursor-blink 1.1s steps(1, end) infinite;
 }
 
 /* Base layer: genuinely global concerns only. */
@@ -75,8 +88,8 @@
     max-width: 100%;
   }
 
-  /* Global reduced-motion guard: the only animation on the site is the
-     typewriter cursor (hidden here and via JS); this stops hover transitions. */
+  /* Global reduced-motion guard. The public page has no decorative animation;
+     this also stops hover transitions and smooth scrolling. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

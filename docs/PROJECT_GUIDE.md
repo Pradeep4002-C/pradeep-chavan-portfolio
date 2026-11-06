@@ -77,15 +77,37 @@ configuration depend on them.
 
 ## The public site
 
-The page order is Hero → Work → About → Background → Contact.
+The page order is Hero → Work → Skills → About → Background → Contact, and the
+navigation lists Work, Skills, About, Background, and Contact in the same order.
 
+- **Hero** opens with "HELLO, I'M" and types the name once, at about 68 ms per
+  character, with a cursor that blinks while typing and disappears at the final
+  full stop. The finished name is exposed once to assistive technology, and an
+  invisible copy reserves its height so the page does not shift. With
+  `prefers-reduced-motion`, the full name appears immediately. The positioning
+  line, approved introduction, "View projects" and "Download resume" actions,
+  and GitHub/LinkedIn links render on the first paint; none of them wait for the
+  animation. A stored introduction that opens with the name is shown without
+  that repeated leading clause, and the record is never edited.
 - **Work** is database-driven. Published projects appear in `order`, with one
   featured project and supporting entries. The section does not revive bundled
-  seed projects when the API returns an empty collection.
-- **About** uses the approved profile fallback while loading, then database
-  headline, biography, education summary, and skill groups when present.
+  seed projects when the API returns an empty collection. Each entry shows a
+  one-line summary, the stored description, a labelled "Built with" technology
+  list, and a repository link. A "View live demo" action is rendered only when
+  the record contains a valid HTTP(S) demo URL; no demo address is invented.
+- **Skills** appears only when the public API confirms at least one valid,
+  administrator-managed skill group. Groups stay scannable; there are no
+  percentage bars or proficiency ratings. It does not restore seed data when the
+  collection is empty or unavailable.
+- **About** uses the approved profile fallback while loading, then the database
+  headline and biography when present. It deliberately renders no institution,
+  qualification, years, score, or location: education belongs only in the
+  dedicated Background section, so it is stated once.
 - **Background** appears only when at least one education, certification, or
-  achievement record exists.
+  achievement record exists. With one degree and two certificates, the degree
+  card sits in the wider left column and the certificates stack beside it;
+  below the large breakpoint the cards form one column. Scores stored as
+  `8.61`, `CGPA: 8.61`, or `8.61/10` are presented as `8.61 / 10`.
 - **Contact** posts to `/api/contact`. It validates input, uses a honeypot and
   timing guard, and keeps values after a failed request.
 - **Resume** is the PDF in `frontend/public/resume.pdf`.
@@ -130,7 +152,10 @@ editor uses React Router's `useBlocker`.
 
 1. Open **Projects** and choose **Add project** or **Edit**.
 2. Enter a title. Use **Use title** to generate a URL-safe slug.
-3. Add a category, display order, summary, and description.
+3. Add a category, display order, summary, and description. The summary is one
+   sentence; the description may hold several paragraphs separated by a blank
+   line, and each renders as its own paragraph. Describe only what the repository
+   actually implements.
 4. Enter technologies separated by commas and a valid `http(s)` repository URL.
 5. Choose an illustration.
 6. If using **Workflow diagram**, add at least two real workflow steps.
@@ -262,9 +287,13 @@ npm run build:frontend
 
 The backend suite covers API authorization, project CRUD, workflow validation
 and persistence, public serialization, logging, secret redaction, contact
-handling, production serving, and database safety checks. The frontend suite
-covers API wrappers, project editor validation and payloads, workflow
-normalization, and public portfolio normalization.
+handling, production serving, and database safety checks. It runs with
+`--test-concurrency=1` because the files share one `_test` database and create
+the same administrator address; parallel files raced on that index. The frontend
+suite covers API wrappers, project editor validation and payloads, workflow
+normalization, public portfolio normalization, and server-rendered checks of the
+public page order, navigation, hero, About/Background separation, project
+actions, and demo-link normalization.
 
 Browser viewport coverage is recorded in the final cycle report. Do not claim
 coverage for a viewport, zoom level, browser, or assistive technology that was
