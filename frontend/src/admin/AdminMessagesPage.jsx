@@ -34,7 +34,7 @@ function ReadBadge({ read }) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-        read ? 'bg-sunken text-muted' : 'bg-accent-soft text-accent'
+        read ? 'bg-sunken text-muted' : 'bg-accent-soft text-accent-strong'
       }`}
     >
       {read ? 'Read' : 'Unread'}
@@ -195,7 +195,7 @@ export default function AdminMessagesPage() {
             onClick={() => changeFilter(option.value)}
             className={`inline-flex min-h-[38px] items-center rounded-full border px-4 text-sm font-semibold transition-ui ${
               filter === option.value
-                ? 'border-accent bg-accent-soft text-accent'
+                ? 'border-accent bg-accent-soft text-accent-strong'
                 : 'border-line-strong text-muted hover:border-accent hover:text-accent'
             }`}
           >

@@ -4,7 +4,7 @@ import Container from '../components/Container.jsx';
 import { formatCgpa, formatPeriod, hasBackgroundContent } from './backgroundContent.js';
 
 const linkClass =
-  'group inline-flex items-start gap-1.5 font-semibold underline decoration-line-strong decoration-1 underline-offset-4 transition-ui hover:text-accent hover:decoration-accent focus-visible:text-accent focus-visible:decoration-accent';
+  'group -mb-3 inline-flex min-h-[48px] min-w-[48px] items-start gap-1.5 font-semibold underline decoration-line-strong decoration-1 underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui hover:text-accent hover:decoration-accent focus-visible:text-accent focus-visible:decoration-accent';
 const cardClass = 'rounded-2xl border border-line-strong bg-surface';
 const metaLabelClass =
   'block text-[0.64rem] font-bold uppercase tracking-[0.12em] text-subtle';

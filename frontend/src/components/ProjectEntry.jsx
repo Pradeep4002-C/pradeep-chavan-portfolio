@@ -1,7 +1,30 @@
 import Arrow from './Arrow.jsx';
 import Button from './Button.jsx';
 import ProjectArtwork from './ProjectArtwork.jsx';
-import TechnologyTags from './TechnologyTags.jsx';
+import TechnologyTags, { projectTagClass } from './TechnologyTags.jsx';
+
+/* Every project is a surface card. From md up the artwork and the written proof
+   sit side by side; below md they stack with the artwork first. The native
+   @starting-style transition makes each card ease in on first paint. */
+const cardClass =
+  'grid gap-6 rounded-3xl border border-line-strong bg-surface p-5 shadow-sm transition-all duration-700 ease-out starting:opacity-0 starting:translate-y-4 sm:p-6 md:items-center md:gap-8 md:p-7';
+const artworkFrameClass = 'min-w-0 overflow-hidden rounded-2xl shadow-md';
+
+/* The public API normalizes demo links to `demoHref`, while imported or raw
+   project payloads may still use the backend field name. Accept either without
+   ever passing a non-http(s) value through to the action. */
+function liveDemoHref(project) {
+  return (
+    [project.demoHref, project.demoUrl, project.liveLink, project.liveUrl].find(
+      (value) => typeof value === 'string' && /^https?:\/\//i.test(value.trim()),
+    )?.trim() ?? null
+  );
+}
+
+/* Both project actions keep the 48px ergonomic target and the shared focus
+   treatment explicit at the call site, independent of Button's own defaults. */
+const actionClass =
+  'self-start min-h-[48px] min-w-[48px] outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2';
 
 /* A stored description is one field, but an administrator may write several
    paragraphs in it separated by a blank line. Splitting there keeps a long
@@ -17,10 +40,11 @@ function descriptionParagraphs(value) {
     .filter(Boolean);
 }
 
-/* The written half of an entry, in one place so the featured arrangement and the
-   supporting arrangement cannot drift apart in wording, order, or spacing. */
+/* The written half of an entry, in one place so the featured and supporting
+   variants cannot drift apart in wording, order, or spacing. */
 function ProjectCopy({ project, featured = false }) {
   const paragraphs = descriptionParagraphs(project.description);
+  const demoHref = liveDemoHref(project);
   return (
     <>
       <p className="text-kicker font-bold uppercase tracking-[0.12em] text-subtle">
@@ -64,17 +88,19 @@ function ProjectCopy({ project, featured = false }) {
             items={project.technologies}
             label={`Technologies used in ${project.name}`}
             className="mt-2"
+            tagClassName={projectTagClass}
           />
         </div>
       ) : null}
 
-      {project.href || project.demoHref ? (
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          {project.demoHref ? (
+      {project.href || demoHref ? (
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          {demoHref ? (
             <Button
-              className="self-start"
-              href={project.demoHref}
+              className={actionClass}
+              href={demoHref}
               size="sm"
+              variant="solid"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -88,7 +114,7 @@ function ProjectCopy({ project, featured = false }) {
 
           {project.href ? (
             <Button
-              className="self-start"
+              className={actionClass}
               href={project.href}
               size="sm"
               variant="outline"
@@ -110,35 +136,36 @@ function ProjectCopy({ project, featured = false }) {
 
 /* One project in the showcase.
 
-   Two arrangements share that copy. The featured project is a wide row: its panel
-   on the left, the writing beside it and vertically centred against the panel. The
-   supporting projects stack - panel above, writing below - so the pair reads as a
-   smaller tier instead of three identical cards, and the panels there are narrow
-   enough to sit side by side from 1024px up.
+   Every project is one card with the same proof hierarchy: the illustration on
+   the left, then the title, summary, case-study description, technology stack,
+   and the live-demo/repository actions on the right. The featured project gives
+   slightly more width to its panel and a larger title; the supporting projects
+   use an even two-column split. Below md the artwork stacks above the details,
+   so the card reads in the same order on a phone.
 
    The panel is an illustration, never a capture, so nothing here fakes an
    application screen: it is a drawing that names what it shows. */
-export default function ProjectEntry({ project, featured = false, className = '' }) {
-  if (featured) {
-    return (
-      <article
-        className={`grid gap-6 border-t border-line pt-9 sm:pt-11 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-stretch lg:gap-12 lg:pt-14 ${className}`}
-      >
-        <ProjectArtwork type={project.artwork} workflow={project.workflow} />
-
-        <div className="flex min-w-0 flex-col justify-center">
-          <ProjectCopy project={project} featured />
-        </div>
-      </article>
-    );
-  }
+export default function ProjectEntry({
+  project,
+  featured = false,
+  className = '',
+  entranceDelay = 0,
+}) {
+  const layoutClass = featured
+    ? 'md:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]'
+    : 'md:grid-cols-2';
 
   return (
-    <article className={`grid gap-5 sm:gap-6 ${className}`}>
-      <ProjectArtwork type={project.artwork} workflow={project.workflow} />
+    <article
+      className={`${cardClass} ${layoutClass} ${className}`}
+      style={{ transitionDelay: `${entranceDelay}ms` }}
+    >
+      <div className={artworkFrameClass}>
+        <ProjectArtwork type={project.artwork} workflow={project.workflow} />
+      </div>
 
-      <div className="min-w-0">
-        <ProjectCopy project={project} />
+      <div className="flex min-w-0 flex-col justify-center">
+        <ProjectCopy project={project} featured={featured} />
       </div>
     </article>
   );

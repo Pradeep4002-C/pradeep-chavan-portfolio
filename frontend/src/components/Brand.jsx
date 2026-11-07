@@ -1,9 +1,9 @@
 /** The site wordmark. `onNavigate` lets the mobile menu close when it is clicked. */
-export default function Brand({ onNavigate }) {
+export default function Brand({ onNavigate, href = '#home' }) {
   return (
     <a
-      className="inline-flex shrink-0 items-center gap-2.5"
-      href="#home"
+      className="inline-flex min-h-[48px] min-w-[48px] shrink-0 items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2"
+      href={href}
       aria-label="Pradeep Chavan — home"
       onClick={onNavigate}
     >

@@ -19,7 +19,7 @@ function navLinkClass({ isActive }) {
   return [
     'flex items-center rounded-xl px-3 py-2 text-sm font-semibold transition-ui',
     isActive
-      ? 'bg-accent-soft text-accent'
+      ? 'bg-accent-soft text-accent-strong'
       : 'text-muted hover:bg-paper hover:text-ink',
   ].join(' ');
 }

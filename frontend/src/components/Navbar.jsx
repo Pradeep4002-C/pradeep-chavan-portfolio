@@ -26,9 +26,9 @@ const SECTION_LABELS = {
      as its divider, which keeps the marker visible on touch layouts. */
 function linkClass(isActive) {
   return [
-    'relative block cursor-pointer border-b py-[15px] text-base transition-ui',
-    'md:inline-block md:border-0 md:py-0 md:text-[0.84rem]',
-    "md:after:absolute md:after:-bottom-1 md:after:left-0 md:after:h-px md:after:w-full md:after:origin-left md:after:bg-accent md:after:transition-transform md:after:duration-200 md:after:content-['']",
+    'relative block min-h-[48px] min-w-[48px] cursor-pointer border-b py-[15px] text-base outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui',
+    'md:inline-flex md:items-center md:border-0 md:px-2 md:-mx-2 md:py-0 md:text-[0.84rem]',
+    "md:after:absolute md:after:bottom-[9px] md:after:left-2 md:after:right-2 md:after:h-px md:after:origin-left md:after:bg-accent md:after:transition-transform md:after:duration-200 md:after:content-['']",
     isActive
       ? 'border-accent text-ink md:after:scale-x-100'
       : 'border-line text-muted hover:text-accent focus-visible:text-accent md:after:scale-x-0 md:hover:after:scale-x-100 md:focus-visible:after:scale-x-100',
@@ -55,7 +55,9 @@ export default function Navbar() {
   );
   const menuButtonRef = useRef(null);
   const appliedHashRef = useRef('');
-  const resumeHref = `${import.meta.env.BASE_URL}${profile.resume}`;
+  const resumeHref = profile.resume
+    ? `${import.meta.env.BASE_URL}${profile.resume}`
+    : null;
 
   /* Track the section the visitor is actually looking at, so the marker follows
      manual scrolling and not just clicks.
@@ -197,7 +199,7 @@ export default function Navbar() {
         <button
           ref={menuButtonRef}
           type="button"
-          className="grid size-[42px] cursor-pointer place-items-center gap-1.5 rounded-full border border-line-strong transition-ui hover:border-ink md:hidden"
+          className="grid size-12 cursor-pointer place-items-center gap-1.5 rounded-full border border-line-strong outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui hover:border-ink md:hidden"
           aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           aria-expanded={menuOpen}
           aria-controls="primary-navigation"
@@ -235,22 +237,24 @@ export default function Navbar() {
               </a>
             );
           })}
-          <Button
-            className="mt-3.5 self-start md:mt-0"
-            href={resumeHref}
-            size="sm"
-            variant="outline"
-            download="Pradeep_Chavan_Resume.pdf"
-            onClick={() => {
-              setMenuOpen(false);
-              // The panel is hidden as the download starts, so keep focus in the
-              // header instead of dropping it on <body>. On desktop the toggle is
-              // display:none and this is skipped.
-              if (menuOpen) menuButtonRef.current?.focus();
-            }}
-          >
-            Download resume <DownloadIcon />
-          </Button>
+          {resumeHref ? (
+            <Button
+              className="mt-3.5 self-start md:mt-0"
+              href={resumeHref}
+              size="sm"
+              variant="outline"
+              download="Pradeep_Chavan_Resume.pdf"
+              onClick={() => {
+                setMenuOpen(false);
+                // The panel is hidden as the download starts, so keep focus in the
+                // header instead of dropping it on <body>. On desktop the toggle is
+                // display:none and this is skipped.
+                if (menuOpen) menuButtonRef.current?.focus();
+              }}
+            >
+              Download resume <DownloadIcon />
+            </Button>
+          ) : null}
         </div>
       </Container>
     </header>

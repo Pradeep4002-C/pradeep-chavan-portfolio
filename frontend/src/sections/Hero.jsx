@@ -29,7 +29,9 @@ function prefersReducedMotion() {
  */
 export default function Hero() {
   const { profile } = usePortfolio();
-  const resumeHref = `${import.meta.env.BASE_URL}${profile.resume}`;
+  const resumeHref = profile.resume
+    ? `${import.meta.env.BASE_URL}${profile.resume}`
+    : null;
   const fullName = `${profile.name.trim().replace(/\.$/, '')}.`;
   const intro = withoutRepeatedName(profile.intro, profile.name);
 
@@ -98,8 +100,13 @@ export default function Hero() {
       id="home"
       aria-labelledby="hero-title"
       tabIndex={-1}
-      className="pt-10 pb-12 focus:outline-none sm:pt-16 sm:pb-16 lg:pt-24 lg:pb-20"
+      className="relative isolate overflow-hidden pt-10 pb-12 focus:outline-none sm:pt-16 sm:pb-16 lg:pt-24 lg:pb-20"
     >
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -left-24 -top-20 size-[22rem] rounded-full bg-accent-soft/20 blur-3xl sm:size-[32rem]" />
+        <div className="absolute -right-28 top-24 size-[18rem] rounded-full bg-accent-soft/20 blur-3xl sm:size-[26rem]" />
+      </div>
+
       <Container>
         <div className="max-w-[920px]">
           <p className="text-kicker font-bold uppercase tracking-[0.14em] text-subtle">
@@ -110,7 +117,7 @@ export default function Hero() {
               heading keeps its final two-line height from the first frame. */}
           <h1
             id="hero-title"
-            className="relative mt-3 text-display font-medium leading-[0.92] tracking-[-0.075em]"
+            className="relative mt-3 text-balance text-[clamp(3.5rem,8vw,6.5rem)] font-extrabold leading-tight tracking-tight"
           >
             <span className="sr-only">{fullName}</span>
             <span aria-hidden="true" className="invisible block">
@@ -134,43 +141,53 @@ export default function Hero() {
             Full-Stack Developer
           </p>
 
-          <p className="mt-4 max-w-[640px] text-[clamp(1.06rem,1.9vw,1.35rem)] font-medium leading-snug tracking-[-0.015em] text-ink">
-            {intro}
-          </p>
+          {intro ? (
+            <p className="mt-4 max-w-[640px] text-[clamp(1.06rem,1.9vw,1.35rem)] font-medium leading-relaxed tracking-[-0.015em] text-ink">
+              {intro}
+            </p>
+          ) : null}
 
           <div className="mt-7 flex flex-wrap items-center gap-3 sm:mt-8">
             <Button href="#work">
               View projects <Arrow down />
             </Button>
-            <Button
-              href={resumeHref}
-              variant="outline"
-              download="Pradeep_Chavan_Resume.pdf"
-            >
-              Download resume <DownloadIcon />
-            </Button>
+            {resumeHref ? (
+              <Button
+                href={resumeHref}
+                variant="outline"
+                download="Pradeep_Chavan_Resume.pdf"
+              >
+                Download resume <DownloadIcon />
+              </Button>
+            ) : null}
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.82rem] font-semibold">
-            <a
-              className="group inline-flex items-center gap-1.5 text-ink transition-ui hover:text-accent"
-              href={profile.github}
-              target="_blank"
-              rel="me noopener noreferrer"
-            >
-              GitHub <Arrow diagonal />
-              <span className="sr-only"> (opens in a new tab)</span>
-            </a>
-            <a
-              className="group inline-flex items-center gap-1.5 text-ink transition-ui hover:text-accent"
-              href={profile.linkedin}
-              target="_blank"
-              rel="me noopener noreferrer"
-            >
-              LinkedIn <Arrow diagonal />
-              <span className="sr-only"> (opens in a new tab)</span>
-            </a>
-          </div>
+          {profile.github || profile.linkedin ? (
+            <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.82rem] font-semibold">
+              {profile.github ? (
+                <a
+                  className="group -mx-2 -my-3.5 inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 px-2 text-ink outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui hover:text-accent"
+                  href={profile.github}
+                  target="_blank"
+                  rel="me noopener noreferrer"
+                >
+                  GitHub <Arrow diagonal />
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </a>
+              ) : null}
+              {profile.linkedin ? (
+                <a
+                  className="group -mx-2 -my-3.5 inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 px-2 text-ink outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui hover:text-accent"
+                  href={profile.linkedin}
+                  target="_blank"
+                  rel="me noopener noreferrer"
+                >
+                  LinkedIn <Arrow diagonal />
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </a>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </Container>
     </section>

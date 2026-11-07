@@ -1,22 +1,29 @@
-/* One tag recipe for the whole page. The project technology lists and the About
-   skills list render the same pill: same radius, border, type size, weight, and
-   text colour. Keep new tag-like lists on this class rather than adding a second
-   near-identical treatment. */
+/* Tag recipes share one geometry: the same radius, padding, type size, and
+   weight. The neutral `tagClass` is used by the About skills list; project
+   technologies use `projectTagClass`, whose accent tint makes the stack read as
+   part of the project's proof. Keep new tag-like lists on one of these two
+   recipes rather than adding a third near-identical treatment. */
 export const tagClass =
   'rounded-full border border-line bg-paper px-2.5 py-1.5 text-[0.7rem] font-semibold text-[#56564f]';
+
+/* Project pills use the accent tint so the technology stack reads as part of
+   the project's proof rather than as a neutral metadata strip. */
+export const projectTagClass =
+  'rounded-full border border-accent-soft bg-accent-soft/50 px-2.5 py-1.5 text-[0.7rem] font-semibold text-accent-strong';
 
 /** Reusable list of technologies shown beneath a project description. */
 export default function TechnologyTags({
   items = [],
   label = 'Technologies used',
   className = 'mt-5',
+  tagClassName = tagClass,
 }) {
   if (items.length === 0) return null;
 
   return (
-    <ul className={`flex flex-wrap gap-1.5 ${className}`} aria-label={label}>
+    <ul className={`flex flex-wrap gap-2 ${className}`} aria-label={label}>
       {items.map((item) => (
-        <li key={item} className={tagClass}>
+        <li key={item} className={tagClassName}>
           {item}
         </li>
       ))}

@@ -80,45 +80,41 @@ function asParagraphs(value) {
 }
 
 /**
- * Merges API profile fields over the bundled profile. Empty or invalid values
- * never replace approved copy, so a blank database field cannot erase the About
- * text or the contact links.
+ * The bundled profile is the starting copy only when no profile record exists.
+ * The public API returns `{}` for a missing record; a real record always has the
+ * required name and email.
+ *
+ * Once a record is stored, empty optional fields are intentional. The
+ * administrator cleared them, so they are passed through as null (or an empty
+ * biography array) and the public components hide them instead of restoring
+ * bundled copy.
  */
 function normalizeProfile(apiProfile) {
-  if (!apiProfile || typeof apiProfile !== 'object') {
+  const hasProfile =
+    apiProfile !== null &&
+    apiProfile !== undefined &&
+    typeof apiProfile === 'object' &&
+    !Array.isArray(apiProfile) &&
+    Object.keys(apiProfile).length > 0;
+
+  if (!hasProfile) {
     return fallbackProfile;
   }
 
-  const next = { ...fallbackProfile };
-  const replacements = {
-    name: asText(apiProfile.name),
+  return {
+    // Required by the API, but keep the fallback as a defensive guard if a
+    // malformed record ever reaches the client.
+    name: asText(apiProfile.name) ?? fallbackProfile.name,
+    email: asEmail(apiProfile.email) ?? fallbackProfile.email,
+    headline: asText(apiProfile.headline),
     intro: asText(apiProfile.intro),
+    bio: asParagraphs(apiProfile.bio),
     location: asText(apiProfile.location),
-    email: asEmail(apiProfile.email),
     github: asHttpUrl(apiProfile.github),
     linkedin: asHttpUrl(apiProfile.linkedin),
     leetcode: asHttpUrl(apiProfile.leetcode),
     resume: asAssetPath(apiProfile.resumePath),
   };
-
-  Object.entries(replacements).forEach(([key, value]) => {
-    if (value) {
-      next[key] = value;
-    }
-  });
-
-  // A database biography replaces the bundled copy only when at least one
-  // usable paragraph survives normalisation.
-  const bio = asParagraphs(apiProfile.bio);
-  if (bio.length > 0) {
-    next.bio = bio;
-  }
-
-  // No headline is bundled, so it is displayed only when the database supplies
-  // meaningful text.
-  next.headline = asText(apiProfile.headline);
-
-  return next;
 }
 
 function normalizeProject(apiProject, index) {

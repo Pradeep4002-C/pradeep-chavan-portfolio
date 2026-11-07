@@ -16,7 +16,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const KNOWN_FIELDS = ['name', 'email', 'subject', 'message'];
 
 const fieldClassBase =
-  'mt-2 w-full rounded-xl border bg-white/[0.06] px-3.5 py-3 text-[0.95rem] text-[#f9f8f4] transition-ui placeholder:text-night-soft/55';
+  'mt-2 min-h-[48px] w-full rounded-xl border bg-white/[0.06] px-3.5 py-3 text-[0.95rem] text-[#f9f8f4] outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui placeholder:text-night-soft/55';
 const fieldErrorClass = 'border-[#ffb4a8] hover:border-[#ffb4a8]';
 const fieldNormalClass = 'border-white/40 hover:border-white/55';
 const labelClass = 'block text-[0.78rem] font-semibold text-night-soft';
@@ -239,7 +239,7 @@ export default function Contact() {
         </p>
         <h2
           id="contact-title"
-          className="mt-5 text-[clamp(3rem,7vw,6.4rem)] font-medium leading-[0.98] tracking-[-0.065em]"
+          className="mt-5 text-[clamp(3rem,6vw,5.5rem)] font-medium leading-none tracking-tighter"
         >
           Let&rsquo;s build something <span className="text-[#b8abff]">useful.</span>
         </h2>
@@ -253,12 +253,14 @@ export default function Contact() {
               </p>
               <div className="mt-7 flex flex-col gap-1.5">
                 <a
-                  className="group inline-flex max-w-full items-center gap-1.5 text-[clamp(0.98rem,1.8vw,1.3rem)] font-medium transition-ui hover:text-[#c3b7ff] [overflow-wrap:anywhere]"
+                  className="group -my-2 inline-flex min-h-[48px] min-w-[48px] max-w-full items-center gap-1.5 text-[clamp(0.98rem,1.8vw,1.3rem)] font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui hover:text-[#c3b7ff] [overflow-wrap:anywhere]"
                   href={`mailto:${profile.email}`}
                 >
                   {profile.email} <Arrow />
                 </a>
-                <p className="text-[0.8rem] text-night-soft/80">Based in {profile.location}</p>
+                {profile.location ? (
+                  <p className="text-[0.8rem] text-night-soft/80">Based in {profile.location}</p>
+                ) : null}
               </div>
             </div>
 

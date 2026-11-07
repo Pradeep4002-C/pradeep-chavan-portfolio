@@ -17,8 +17,10 @@ function WorkStatus({ children }) {
 
 export default function Work() {
   const { profile, projects, status } = usePortfolio();
-  const featured = projects.find((project) => project.featured);
-  const supportingProjects = projects.filter((project) => !project.featured);
+  const featured = projects.find((project) => project.featured) ?? null;
+  // Keep every other project visible, including a legacy second featured
+  // record, instead of filtering the whole featured flag out of the grid.
+  const supportingProjects = projects.filter((project) => project.id !== featured?.id);
   const showProjects = status === PORTFOLIO_STATUS.ready && projects.length > 0;
 
   return (
@@ -62,40 +64,34 @@ export default function Work() {
         ) : null}
 
         {showProjects ? (
-          <>
+          <div className="grid gap-6">
             {featured ? <ProjectEntry project={featured} featured /> : null}
 
-            {supportingProjects.length > 0 ? (
-              <div className="mt-9 grid gap-y-9 border-t border-line pt-9 sm:mt-11 sm:gap-y-11 sm:pt-11 lg:mt-14 lg:grid-cols-2 lg:items-start lg:gap-x-12 lg:pt-14">
-                {supportingProjects.map((project, index) => (
-                  <ProjectEntry
-                    key={project.id}
-                    project={project}
-                    className={
-                      index > 0
-                        ? 'border-t border-line pt-9 sm:pt-11 lg:border-t-0 lg:pt-0'
-                        : ''
-                    }
-                  />
-                ))}
-              </div>
-            ) : null}
-          </>
+            {supportingProjects.map((project, index) => (
+              <ProjectEntry
+                key={project.id}
+                project={project}
+                entranceDelay={(featured ? index + 1 : index) * 70}
+              />
+            ))}
+          </div>
         ) : null}
 
-        <div className="mt-8 flex flex-col items-start gap-4 border-t border-line-strong pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-[0.82rem] text-muted">
-            More projects and code are on GitHub.
-          </span>
-          <a
-            className="group inline-flex items-center gap-1.5 text-[0.82rem] font-bold text-ink transition-ui hover:text-accent"
-            href={profile.github}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Browse GitHub <Arrow diagonal />
-          </a>
-        </div>
+        {profile.github ? (
+          <div className="mt-8 flex flex-col items-start gap-4 border-t border-line-strong pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-[0.82rem] text-muted">
+              More projects and code are on GitHub.
+            </span>
+            <a
+              className="group -mx-2 -my-3.5 inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 px-2 text-[0.82rem] font-bold text-ink outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui hover:text-accent"
+              href={profile.github}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Browse GitHub <Arrow diagonal />
+            </a>
+          </div>
+        ) : null}
       </Container>
     </section>
   );

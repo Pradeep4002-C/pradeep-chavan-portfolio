@@ -13,6 +13,10 @@
   --color-line: #dedfd7;
   --color-line-strong: #cfd0c7;
   --color-accent: #6c55e8;
+  /* Normal-size text on --color-accent-soft needs 4.5:1. The brand accent is
+     4.28:1 there, so this darker variant is used for text on the soft pill
+     background while --color-accent stays reserved for graphics and large text. */
+  --color-accent-strong: #5a43d6;
   --color-accent-soft: #ece8ff;
   --color-night: #222126;
   --color-night-soft: #c5c3ca;
@@ -88,8 +92,9 @@
     max-width: 100%;
   }
 
-  /* Global reduced-motion guard. The public page has no decorative animation;
-     this also stops hover transitions and smooth scrolling. */
+  /* Global reduced-motion guard. Entrance transitions and smooth scrolling are
+     reduced to nothing for visitors who ask for less motion; the zero delay keeps
+     staggered cards from sitting invisible while a delay elapses. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -97,6 +102,7 @@
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+      transition-delay: 0ms !important;
       scroll-behavior: auto !important;
     }
   }

@@ -8,7 +8,7 @@ const variants = {
 };
 
 const sizes = {
-  md: 'min-h-[47px] px-5 text-sm',
+  md: 'px-5 text-sm',
   sm: 'px-3.5 py-2.5 text-[0.84rem]',
 };
 
@@ -27,7 +27,7 @@ export default function Button({
     <Tag
       href={href}
       type={href ? undefined : type}
-      className={`group inline-flex max-w-full cursor-pointer items-center justify-center gap-1.5 rounded-full text-center font-semibold transition-ui disabled:cursor-not-allowed disabled:opacity-60 ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`group inline-flex min-h-[48px] min-w-[48px] max-w-full cursor-pointer items-center justify-center gap-1.5 rounded-full text-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui disabled:cursor-not-allowed disabled:opacity-60 ${variants[variant]} ${sizes[size]} ${className}`}
       {...rest}
     >
       {children}

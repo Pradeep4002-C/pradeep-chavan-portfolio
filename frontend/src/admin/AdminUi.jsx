@@ -44,7 +44,7 @@ export function AdminBrand() {
 /** Small "Admin" pill so the private area is visually distinct. */
 export function AdminPill() {
   return (
-    <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-accent">
+    <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-accent-strong">
       Admin
     </span>
   );

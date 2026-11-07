@@ -599,9 +599,14 @@ export default function ProjectEditorPage() {
                     className="size-4 rounded border-line text-accent"
                     checked={values.featured}
                     onChange={(event) => update('featured', event.target.checked)}
+                    aria-describedby="project-featured-help"
                   />
                   Featured project
                 </label>
+                <p id="project-featured-help" className="ml-6 text-xs leading-relaxed text-muted">
+                  Note: Only one project can be featured. Checking this will un-feature any
+                  currently featured project.
+                </p>
                 <label className="flex items-center gap-2.5 text-sm font-medium text-ink">
                   <input
                     type="checkbox"

@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useBlocker } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import { fetchProfile, updateProfile } from './adminApi.js';
 import { useAdminAuth } from './AdminAuthContext.jsx';
 import {
   AdminErrorState,
   AdminLoading,
+  ConfirmDialog,
   Notice,
   PageHeader,
   describeError,
@@ -18,6 +20,28 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Mirrors the public portfolio's asset-path rule: relative, no escaping.
 const ASSET_PATH_PATTERN = /^(?!\/)(?!.*\.\.)[A-Za-z0-9._~/-]+$/;
 const MAX_PARAGRAPHS = 20;
+
+export const UNSAVED_PROFILE_MESSAGE =
+  'You have unsaved changes. Are you sure you want to discard them?';
+
+/**
+ * Snapshot comparison stores paragraph text only, not the internal editor ids,
+ * so loading a profile or saving it does not make the form look dirty.
+ */
+function draftSnapshot(values, paragraphs) {
+  return {
+    values: { ...values },
+    paragraphs: paragraphs.map((paragraph) => paragraph.text),
+  };
+}
+
+function isDraftDirty(values, paragraphs, snapshot) {
+  return (
+    JSON.stringify(values) !== JSON.stringify(snapshot.values) ||
+    JSON.stringify(paragraphs.map((paragraph) => paragraph.text)) !==
+      JSON.stringify(snapshot.paragraphs)
+  );
+}
 
 const TEXT_FIELDS = [
   { name: 'name', label: 'Name', required: true, maxLength: 120 },
@@ -122,6 +146,9 @@ export default function AdminProfilePage() {
   const { markUnauthenticated } = useAdminAuth();
   const [values, setValues] = useState(emptyValues);
   const [paragraphs, setParagraphs] = useState([{ id: 1, text: '' }]);
+  const [snapshot, setSnapshot] = useState(() =>
+    draftSnapshot(emptyValues(), [{ id: 1, text: '' }]),
+  );
   const nextParagraphId = useRef(2);
   const [status, setStatus] = useState('loading');
   const [loadError, setLoadError] = useState(null);
@@ -131,12 +158,38 @@ export default function AdminProfilePage() {
   const [formError, setFormError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const dirty = useMemo(
+    () => isDraftDirty(values, paragraphs, snapshot),
+    [values, paragraphs, snapshot],
+  );
+
+  const blocker = useBlocker(() => dirty && !submitting);
+
+  useEffect(() => {
+    if (!dirty || submitting) {
+      return undefined;
+    }
+
+    function handleBeforeUnload(event) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [dirty, submitting]);
+
   const applyProfile = useCallback((profile) => {
-    setValues(valuesFromProfile(profile));
+    const nextValues = valuesFromProfile(profile);
     const bio = Array.isArray(profile?.bio) ? profile.bio.filter((p) => typeof p === 'string') : [];
-    setParagraphs(
-      bio.length > 0 ? bio.map((text) => ({ id: nextParagraphId.current++, text })) : [{ id: 0, text: '' }],
-    );
+    const nextParagraphs =
+      bio.length > 0
+        ? bio.map((text) => ({ id: nextParagraphId.current++, text }))
+        : [{ id: 0, text: '' }];
+
+    setValues(nextValues);
+    setParagraphs(nextParagraphs);
+    setSnapshot(draftSnapshot(nextValues, nextParagraphs));
   }, []);
 
   const load = useCallback(
@@ -169,6 +222,9 @@ export default function AdminProfilePage() {
   }, [load]);
 
   function reload() {
+    if (dirty && !window.confirm(UNSAVED_PROFILE_MESSAGE)) {
+      return;
+    }
     setStatus('loading');
     load();
   }
@@ -364,6 +420,9 @@ export default function AdminProfilePage() {
           <p className="mt-1 text-xs text-muted">
             Each paragraph appears as a separate block in the About section.
           </p>
+          <p className="mt-1 text-xs text-muted">
+            Leave bio blank to hide it. It will no longer show the default fallback text.
+          </p>
 
           <div className="mt-3 flex flex-col gap-3">
             {paragraphs.map((paragraph, index) => {
@@ -416,6 +475,18 @@ export default function AdminProfilePage() {
           </Button>
         </div>
       </form>
+
+      {blocker.state === 'blocked' ? (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          message="Your profile edits have not been saved. Leaving this page will discard them."
+          confirmLabel="Discard changes"
+          busyLabel="Discarding…"
+          busy={false}
+          onCancel={() => blocker.reset?.()}
+          onConfirm={() => blocker.proceed?.()}
+        />
+      ) : null}
     </div>
   );
 }

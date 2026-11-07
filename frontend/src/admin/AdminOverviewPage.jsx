@@ -107,7 +107,7 @@ export default function AdminOverviewPage() {
           <li key={card.key}>
             <Link
               to={card.to}
-              className="group flex h-full flex-col rounded-2xl border border-line bg-surface p-5 transition-colors hover:border-accent/40 focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
+              className="group flex h-full flex-col rounded-2xl border border-line bg-surface p-5 outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-colors hover:border-accent/40 focus-visible:border-accent"
             >
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-subtle">{card.label}</p>
               <p className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-ink">
@@ -148,7 +148,7 @@ export default function AdminOverviewPage() {
             <li key={link.to}>
               <Link
                 to={link.to}
-                className="block rounded-xl border border-line bg-sunken/50 p-4 transition-colors hover:border-accent/40 hover:bg-sunken focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
+                className="block rounded-xl border border-line bg-sunken/50 p-4 outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-colors hover:border-accent/40 hover:bg-sunken focus-visible:border-accent"
               >
                 <span className="block text-sm font-semibold text-ink">{link.label}</span>
                 <span className="mt-1 block text-xs text-muted">{link.detail}</span>
