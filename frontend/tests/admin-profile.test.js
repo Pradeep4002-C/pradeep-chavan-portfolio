@@ -1,0 +1,452 @@
+import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+import test, { after, afterEach, before } from 'node:test';
+import { JSDOM } from 'jsdom';
+import { createServer } from 'vite';
+
+/*
+ * This is a real browser-DOM interaction test. The project otherwise tests
+ * plain functions and server rendering, so jsdom supplies the document that
+ * react-dom/client needs. React, React DOM, and React Router are imported only
+ * after the DOM globals exist, and Vite's SSR module loader provides the same
+ * component modules the application uses.
+ */
+const frontendRoot = fileURLToPath(new URL('..', import.meta.url));
+const EXACT_UNSAVED_MESSAGE =
+  'You have unsaved changes. Are you sure you want to discard them?';
+
+const initialProfile = {
+  name: 'Pradeep Chavan',
+  email: 'owner@example.com',
+  headline: 'Full-stack developer',
+  intro: 'I build useful software.',
+  bio: ['First paragraph.', 'Second paragraph.'],
+  location: 'Pune, India',
+  github: 'https://github.com/example',
+  linkedin: 'https://www.linkedin.com/in/example',
+  leetcode: 'https://leetcode.com/u/example',
+  resumePath: 'resume.pdf',
+};
+
+const originalFetch = globalThis.fetch;
+
+let dom;
+let vite;
+let React;
+let act;
+let createRoot;
+let createMemoryRouter;
+let RouterProvider;
+let AdminProfilePage;
+let AdminAuthProvider;
+let UNSAVED_PROFILE_MESSAGE;
+
+function installDom() {
+  const nextDom = new JSDOM(
+    '<!doctype html><html><body><div id="root"></div></body></html>',
+    {
+      url: 'http://localhost/admin/profile',
+      pretendToBeVisual: true,
+    },
+  );
+  const { window } = nextDom;
+
+  const globals = {
+    window,
+    document: window.document,
+    navigator: window.navigator,
+    HTMLElement: window.HTMLElement,
+    HTMLInputElement: window.HTMLInputElement,
+    HTMLTextAreaElement: window.HTMLTextAreaElement,
+    HTMLButtonElement: window.HTMLButtonElement,
+    Element: window.Element,
+    Node: window.Node,
+    Event: window.Event,
+    CustomEvent: window.CustomEvent,
+    MouseEvent: window.MouseEvent,
+    KeyboardEvent: window.KeyboardEvent,
+    FocusEvent: window.FocusEvent,
+    InputEvent: window.InputEvent,
+    MutationObserver: window.MutationObserver,
+    getComputedStyle: window.getComputedStyle.bind(window),
+    requestAnimationFrame: window.requestAnimationFrame.bind(window),
+    cancelAnimationFrame: window.cancelAnimationFrame.bind(window),
+    localStorage: window.localStorage,
+  };
+
+  for (const [key, value] of Object.entries(globals)) {
+    Object.defineProperty(globalThis, key, {
+      value,
+      configurable: true,
+      writable: true,
+    });
+  }
+
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  return nextDom;
+}
+
+before(async () => {
+  dom = installDom();
+
+  React = await import('react');
+  act = React.act;
+  ({ createRoot } = await import('react-dom/client'));
+
+  vite = await createServer({
+    root: frontendRoot,
+    configFile: false,
+    esbuild: { jsx: 'automatic' },
+    appType: 'custom',
+    logLevel: 'silent',
+    server: { middlewareMode: true },
+    // The browser build uses react-router's ESM entries. SSR otherwise
+    // resolves its CommonJS entries, splitting the router context that
+    // `useBlocker` and `RouterProvider` must share.
+    resolve: {
+      alias: [
+        {
+          find: /^react-router-dom$/,
+          replacement: fileURLToPath(import.meta.resolve('react-router-dom')),
+        },
+        {
+          find: /^react-router\/dom$/,
+          replacement: fileURLToPath(import.meta.resolve('react-router/dom')),
+        },
+        {
+          find: /^react-router$/,
+          replacement: fileURLToPath(import.meta.resolve('react-router')),
+        },
+      ],
+    },
+  });
+
+  const routerModule = await vite.ssrLoadModule('react-router-dom');
+  createMemoryRouter = routerModule.createMemoryRouter;
+  RouterProvider = routerModule.RouterProvider;
+
+  const profileModule = await vite.ssrLoadModule('/src/admin/AdminProfilePage.jsx');
+  const authModule = await vite.ssrLoadModule('/src/admin/AdminAuthContext.jsx');
+  AdminProfilePage = profileModule.default;
+  UNSAVED_PROFILE_MESSAGE = profileModule.UNSAVED_PROFILE_MESSAGE;
+  AdminAuthProvider = authModule.AdminAuthProvider;
+});
+
+after(async () => {
+  await vite?.close();
+  dom?.window.close();
+});
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+function jsonResponse(payload, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Minimal stand-in for the two endpoints these components call. The stored
+ * profile is mutable so an accepted Reload can prove it refetched, and every
+ * call is recorded so a declined Reload can prove it did not.
+ */
+function mockProfileApi(profile = initialProfile) {
+  const calls = [];
+  let stored = {
+    ...profile,
+    bio: [...profile.bio],
+  };
+
+  globalThis.fetch = async (url, init = {}) => {
+    const method = (init.method ?? 'GET').toUpperCase();
+    calls.push({ url: String(url), method, body: init.body });
+
+    if (String(url) === '/api/auth/me') {
+      return jsonResponse({
+        data: {
+          admin: { id: 'admin-1', email: 'owner@example.com', name: 'Owner' },
+        },
+      });
+    }
+
+    if (String(url) === '/api/admin/profile') {
+      if (method === 'PUT') {
+        const body = JSON.parse(init.body);
+        stored = {
+          ...stored,
+          ...body,
+          bio: Array.isArray(body.bio) ? [...body.bio] : [],
+        };
+      }
+      return jsonResponse({ data: { profile: stored } });
+    }
+
+    throw new Error(`Unexpected request in admin profile test: ${method} ${url}`);
+  };
+
+  return {
+    calls,
+    profileRequests() {
+      return calls.filter(
+        (call) => call.url === '/api/admin/profile' && call.method === 'GET',
+      );
+    },
+    putRequests() {
+      return calls.filter(
+        (call) => call.url === '/api/admin/profile' && call.method === 'PUT',
+      );
+    },
+  };
+}
+
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+async function flush() {
+  await act(async () => {
+    await tick();
+    await tick();
+    await tick();
+  });
+}
+
+async function mountProfile() {
+  const router = createMemoryRouter(
+    [
+      {
+        path: '/admin/profile',
+        element: React.createElement(
+          AdminAuthProvider,
+          null,
+          React.createElement(AdminProfilePage),
+        ),
+      },
+      {
+        path: '/admin',
+        element: React.createElement('div', null, 'Admin home'),
+      },
+    ],
+    { initialEntries: ['/admin/profile'] },
+  );
+
+  const container = document.getElementById('root');
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(React.createElement(RouterProvider, { router }));
+    await tick();
+    await tick();
+    await tick();
+  });
+
+  return {
+    router,
+    async unmount() {
+      await act(async () => {
+        root.unmount();
+      });
+    },
+  };
+}
+
+function findButton(label) {
+  return Array.from(document.querySelectorAll('button')).find(
+    (button) => button.textContent.replace(/\s+/g, ' ').trim() === label,
+  );
+}
+
+function setValue(element, value) {
+  const prototype =
+    element instanceof window.HTMLTextAreaElement
+      ? window.HTMLTextAreaElement.prototype
+      : window.HTMLInputElement.prototype;
+
+  Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, value);
+  element.dispatchEvent(new window.Event('input', { bubbles: true }));
+}
+
+async function editField(id, value) {
+  const element = document.getElementById(id);
+  assert.ok(element, `expected field ${id} to be rendered`);
+
+  await act(async () => {
+    setValue(element, value);
+  });
+  await flush();
+}
+
+async function editFirstBio(value) {
+  const element = document.querySelector('textarea[id^="profile-bio-"]');
+  assert.ok(element, 'expected a biography textarea to be rendered');
+
+  await act(async () => {
+    setValue(element, value);
+  });
+  await flush();
+}
+
+function unloadWasPrevented() {
+  const event = new window.Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
+}
+
+async function navigate(router, path) {
+  let navigation;
+  await act(async () => {
+    navigation = router.navigate(path);
+  });
+  await flush();
+  return navigation;
+}
+
+test('tracks field edits, warns before unload, and blocks navigation until discarded', async (t) => {
+  mockProfileApi();
+  const { router, unmount } = await mountProfile();
+  t.after(unmount);
+
+  assert.equal(UNSAVED_PROFILE_MESSAGE, EXACT_UNSAVED_MESSAGE);
+  assert.equal(document.getElementById('profile-name').value, 'Pradeep Chavan');
+  assert.equal(unloadWasPrevented(), false, 'a loaded, untouched form must not warn');
+
+  await editField('profile-name', 'Pradeep C');
+
+  assert.equal(unloadWasPrevented(), true, 'editing a field must arm beforeunload');
+
+  await navigate(router, '/admin');
+
+  assert.equal(router.state.location.pathname, '/admin/profile');
+  const dialog = document.querySelector('[role="alertdialog"]');
+  assert.ok(dialog, 'in-app navigation must be blocked while dirty');
+  assert.match(dialog.textContent, /Discard unsaved changes\?/);
+
+  await act(async () => {
+    findButton('Cancel').click();
+  });
+  await flush();
+
+  assert.equal(document.querySelector('[role="alertdialog"]'), null);
+  assert.equal(router.state.location.pathname, '/admin/profile');
+  assert.equal(document.getElementById('profile-name').value, 'Pradeep C');
+
+  const allowed = await navigate(router, '/admin');
+
+  assert.ok(findButton('Discard changes'), 'a second navigation must block again');
+
+  await act(async () => {
+    findButton('Discard changes').click();
+  });
+  await flush();
+  await allowed;
+
+  assert.equal(router.state.location.pathname, '/admin');
+  assert.match(document.body.textContent, /Admin home/);
+});
+
+test('marks a biography paragraph dirty and clears the snapshot after a successful save', async (t) => {
+  const api = mockProfileApi();
+  const { router, unmount } = await mountProfile();
+  t.after(unmount);
+
+  await editFirstBio('Rewritten paragraph.');
+
+  assert.equal(
+    unloadWasPrevented(),
+    true,
+    'editing a biography paragraph must arm beforeunload',
+  );
+
+  await navigate(router, '/admin');
+  assert.ok(
+    document.querySelector('[role="alertdialog"]'),
+    'a biography-only edit must block navigation',
+  );
+
+  await act(async () => {
+    findButton('Cancel').click();
+  });
+  await flush();
+
+  await act(async () => {
+    findButton('Save profile').click();
+  });
+  await flush();
+  await flush();
+
+  const puts = api.putRequests();
+  assert.equal(puts.length, 1);
+  assert.deepEqual(JSON.parse(puts[0].body).bio, [
+    'Rewritten paragraph.',
+    'Second paragraph.',
+  ]);
+  assert.match(document.body.textContent, /Your profile was saved\./);
+
+  assert.equal(
+    unloadWasPrevented(),
+    false,
+    'a successful save must reset the baseline snapshot and disarm beforeunload',
+  );
+
+  await navigate(router, '/admin');
+
+  assert.equal(
+    document.querySelector('[role="alertdialog"]'),
+    null,
+    'saved edits must not trigger the navigation blocker',
+  );
+  assert.equal(router.state.location.pathname, '/admin');
+});
+
+test('confirms before Reload discards edits and only refetches when accepted', async (t) => {
+  const api = mockProfileApi();
+  const { unmount } = await mountProfile();
+  t.after(unmount);
+
+  await editField('profile-name', 'Changed Name');
+
+  const confirmMessages = [];
+  let confirmAnswer = false;
+  window.confirm = (message) => {
+    confirmMessages.push(message);
+    return confirmAnswer;
+  };
+
+  await act(async () => {
+    findButton('Reload').click();
+  });
+  await flush();
+
+  assert.deepEqual(confirmMessages, [EXACT_UNSAVED_MESSAGE]);
+  assert.equal(
+    document.getElementById('profile-name').value,
+    'Changed Name',
+    'declining the confirmation must preserve the draft',
+  );
+  assert.equal(
+    api.profileRequests().length,
+    1,
+    'declining the confirmation must not refetch the profile',
+  );
+
+  confirmAnswer = true;
+  await act(async () => {
+    findButton('Reload').click();
+  });
+  await flush();
+  await flush();
+
+  assert.deepEqual(confirmMessages, [EXACT_UNSAVED_MESSAGE, EXACT_UNSAVED_MESSAGE]);
+  assert.equal(api.profileRequests().length, 2, 'accepting must refetch the profile');
+  assert.equal(
+    document.getElementById('profile-name').value,
+    'Pradeep Chavan',
+    'accepting must restore the stored profile',
+  );
+  assert.equal(
+    unloadWasPrevented(),
+    false,
+    'reloading the stored profile must clear the dirty state',
+  );
+});

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { usePortfolio } from '../PortfolioContext.jsx';
+import { PORTFOLIO_STATUS, usePortfolio } from '../PortfolioContext.jsx';
 import { hasBackgroundContent } from '../sections/backgroundContent.js';
 import { hasSkillGroups } from '../sections/skillsContent.js';
 import Brand from './Brand.jsx';
@@ -36,14 +36,25 @@ function linkClass(isActive) {
 }
 
 export default function Navbar() {
-  const { profile, skillGroups, education, certifications, achievements } = usePortfolio();
-  // Optional sections join the navigation only while their public content
-  // exists, so a link can never point at an element that is not rendered.
+  const {
+    profile,
+    skillGroups,
+    education,
+    certifications,
+    achievements,
+    status,
+  } = usePortfolio();
+  const isLoading = status === PORTFOLIO_STATUS.loading;
+  // Optional sections join the navigation once their public content exists.
+  // While the API request is pending, reserve their slots instead of letting
+  // them pop into the header after the response and shifting every link.
   const sectionKey = [
     'work',
-    hasSkillGroups(skillGroups) ? 'skills' : null,
+    isLoading || hasSkillGroups(skillGroups) ? 'skills' : null,
     'about',
-    hasBackgroundContent({ education, certifications, achievements }) ? 'background' : null,
+    isLoading || hasBackgroundContent({ education, certifications, achievements })
+      ? 'background'
+      : null,
     'contact',
   ]
     .filter(Boolean)
@@ -54,7 +65,6 @@ export default function Navbar() {
     typeof window === 'undefined' ? '' : window.location.hash.slice(1),
   );
   const menuButtonRef = useRef(null);
-  const appliedHashRef = useRef('');
   const resumeHref = profile.resume
     ? `${import.meta.env.BASE_URL}${profile.resume}`
     : null;
@@ -132,34 +142,30 @@ export default function Navbar() {
       window.removeEventListener('resize', scheduleReconnect);
       if (observer) observer.disconnect();
     };
-  }, [sectionKey]);
+  }, [sectionKey, status]);
 
-  /* Restore deep links. The sections are rendered by React, so a URL such as
-     /#about reaches the browser before the target exists and the native fragment
-     scroll finds nothing. Once the section is in the DOM, put the visitor on it.
+  /* Align deep links once async content has settled. The homepage initially
+     renders Work's loading panel and omits optional sections; scrolling as soon
+     as #about exists would strand the viewport after Work and Skills expand
+     above it. Waiting for a non-loading status and one animation frame lets the
+     final section heights commit before the jump.
+
      `scrollIntoView` honours the html `scroll-padding-top`, so the sticky header
-     still keeps its distance.
-
-     The effect also runs when `#background` first appears after the API call, but
-     a hash that has already been scrolled to is never applied twice, so late
-     content cannot yank a visitor who has started scrolling. */
+     still keeps its distance. */
   useEffect(() => {
+    if (status === PORTFOLIO_STATUS.loading) return undefined;
+
     const id = window.location.hash.slice(1);
-    if (!id || appliedHashRef.current === id) return undefined;
+    if (!id) return undefined;
 
-    const target = document.getElementById(id);
-    if (!target) return undefined;
-
-    // A deep link is a jump, not an animation, and timers keep working in tabs
-    // where animation frames are paused. The hash is recorded once the jump has
-    // happened, so a cleanup caused by the API arriving first simply re-schedules.
-    const timer = window.setTimeout(() => {
-      appliedHashRef.current = id;
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(id);
+      if (!target) return;
       target.scrollIntoView({ block: 'start', behavior: 'instant' });
-    }, 0);
+    });
 
-    return () => window.clearTimeout(timer);
-  }, [sectionKey]);
+    return () => window.cancelAnimationFrame(frame);
+  }, [sectionKey, status]);
 
   // Close the mobile menu with Escape or when the viewport returns to desktop.
   useEffect(() => {

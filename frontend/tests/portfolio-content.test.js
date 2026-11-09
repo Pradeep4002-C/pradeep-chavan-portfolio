@@ -209,15 +209,58 @@ test('a response without a data object is rejected instead of restoring bundled 
   assert.throws(() => normalizePortfolio('not-an-object'), /data object/);
 });
 
-test('an empty database biography keeps the approved About copy', () => {
+test('an empty biography in a stored profile hides the bundled About copy', () => {
   const cases = [[], ['', '   '], [null, 42], 'not-an-array', null, undefined];
 
   for (const bio of cases) {
     const { profile } = normalized({ profile: { bio } });
-    assert.deepEqual(profile.bio, fallbackProfile.bio);
+    assert.deepEqual(profile.bio, []);
   }
 
   assert.equal(fallbackProfile.bio.length, 2);
+});
+
+test('a stored profile treats cleared optional fields as intentionally empty', () => {
+  const { profile } = normalizePortfolio({
+    profile: {
+      name: 'Pradeep Chavan',
+      email: 'owner@example.com',
+      headline: '',
+      intro: '',
+      bio: [],
+      location: '',
+      github: '',
+      linkedin: '',
+      leetcode: '',
+      resumePath: '',
+    },
+    projects: [],
+    skills: [],
+    education: [],
+    certifications: [],
+    achievements: [],
+  });
+
+  assert.equal(profile.name, 'Pradeep Chavan');
+  assert.equal(profile.email, 'owner@example.com');
+  assert.equal(profile.headline, null);
+  assert.equal(profile.intro, null);
+  assert.deepEqual(profile.bio, []);
+  assert.equal(profile.location, null);
+  assert.equal(profile.github, null);
+  assert.equal(profile.linkedin, null);
+  assert.equal(profile.leetcode, null);
+  assert.equal(profile.resume, null);
+});
+
+test('the bundled profile is used only when no profile record exists', () => {
+  for (const profile of [null, undefined, {}]) {
+    const result = normalizePortfolio({ profile });
+    assert.equal(result.profile.intro, fallbackProfile.intro);
+    assert.deepEqual(result.profile.bio, fallbackProfile.bio);
+    assert.equal(result.profile.github, fallbackProfile.github);
+    assert.equal(result.profile.resume, fallbackProfile.resume);
+  }
 });
 
 test('valid biography paragraphs replace the bundled copy, trimmed and without blanks', () => {

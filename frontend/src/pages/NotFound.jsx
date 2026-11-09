@@ -1,7 +1,11 @@
+import { useEffect } from 'react';
 import Arrow from '../components/Arrow.jsx';
 import Brand from '../components/Brand.jsx';
 import Button from '../components/Button.jsx';
 import Container from '../components/Container.jsx';
+
+const DEFAULT_DOCUMENT_TITLE = 'Pradeep Chavan — Developer Portfolio';
+const NOT_FOUND_DOCUMENT_TITLE = 'Page not found — Pradeep Chavan';
 
 /**
  * Branded public 404 view.
@@ -11,6 +15,15 @@ import Container from '../components/Container.jsx';
  * visitor still gets a page that belongs to the portfolio.
  */
 export default function NotFound() {
+  useEffect(() => {
+    const previousTitle = document.title || DEFAULT_DOCUMENT_TITLE;
+    document.title = NOT_FOUND_DOCUMENT_TITLE;
+
+    return () => {
+      document.title = previousTitle;
+    };
+  }, []);
+
   return (
     <div className="flex min-h-screen flex-col bg-paper">
       <header className="border-b border-line">

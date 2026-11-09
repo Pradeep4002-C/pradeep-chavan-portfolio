@@ -5,7 +5,7 @@ import Container from '../components/Container.jsx';
    entrance is a native @starting-style transition: the card starts faded and
    slightly lower, then eases into place without any animation library. */
 const cellClass =
-  'flex flex-col rounded-2xl border border-line-strong bg-surface p-6 sm:p-8 shadow-sm transition-all duration-700 ease-out starting:opacity-0 starting:translate-y-4';
+  'flex flex-col rounded-2xl border border-line-strong bg-surface p-6 shadow-sm transition-all duration-700 ease-out starting:opacity-0 starting:translate-y-4 sm:p-7';
 
 /**
  * Personal context only. Institution, qualification, years, CGPA, and location
@@ -13,10 +13,11 @@ const cellClass =
  * the database records. The optional headline is a positioning line, not an
  * academic summary.
  *
- * The heading and Profile bio occupy two 2x2 cells, and any continued bio
- * spans the full width beneath them. The optional headline stays inside the
- * Profile cell so the section keeps three clear Bento footprints. The whole
- * arrangement collapses to one column on mobile.
+ * The heading and Profile bio occupy two half-width cells that stretch equally
+ * on the top row, and any continued bio spans the full width beneath them. The
+ * optional headline stays inside the Profile cell so the section keeps three
+ * clear Bento footprints. The whole arrangement collapses to one column on
+ * mobile.
  */
 export default function About() {
   const { profile } = usePortfolio();
@@ -35,10 +36,10 @@ export default function About() {
       className="py-16 focus:outline-none sm:py-20 lg:py-28"
     >
       <Container>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:auto-rows-[minmax(150px,auto)]">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
           <div
             className={`${cellClass} ${
-              hasProfileCell ? 'md:col-span-2 md:row-span-2' : 'md:col-span-4'
+              hasProfileCell ? 'md:col-span-2' : 'md:col-span-4'
             }`}
             style={{ transitionDelay: '0ms' }}
           >
@@ -61,7 +62,7 @@ export default function About() {
 
           {hasProfileCell ? (
             <div
-              className={`${cellClass} md:col-span-2 md:row-span-2`}
+              className={`${cellClass} md:col-span-2`}
               style={{ transitionDelay: '70ms' }}
             >
               <p className="text-kicker font-bold uppercase tracking-[0.14em] text-subtle">
@@ -93,7 +94,7 @@ export default function About() {
               <p className="text-kicker font-bold uppercase tracking-[0.14em] text-subtle">
                 Continued
               </p>
-              <div className="mt-4 max-w-[75ch]">
+              <div className="mt-4 max-w-[68ch]">
                 {remainingBio.map((paragraph, index) => (
                   <p
                     key={index}

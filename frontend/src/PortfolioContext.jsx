@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { EMPTY_PORTFOLIO, fetchPortfolio } from './api/portfolio.js';
 
 /* Exported so isolated render tests can supply a confirmed portfolio value
@@ -20,27 +20,37 @@ export const PORTFOLIO_STATUS = Object.freeze({
 export function PortfolioProvider({ children }) {
   const [content, setContent] = useState(EMPTY_PORTFOLIO);
   const [status, setStatus] = useState(PORTFOLIO_STATUS.loading);
+  const requestRef = useRef(null);
 
-  useEffect(() => {
+  /* A manual retry starts a fresh request lifecycle: abort whatever is still
+     in flight, show the loading state again, and ignore any late settlement
+     from the previous controller. The callback stays stable so the effect
+     below runs once per mount rather than on every provider render. */
+  const retry = useCallback(() => {
+    requestRef.current?.abort();
+
     const controller = new AbortController();
-    let isCurrent = true;
+    requestRef.current = controller;
+    setStatus(PORTFOLIO_STATUS.loading);
 
     fetchPortfolio({ signal: controller.signal })
       .then((apiContent) => {
-        if (isCurrent) {
-          setContent(apiContent);
-          setStatus(PORTFOLIO_STATUS.ready);
+        if (requestRef.current !== controller) {
+          return;
         }
+
+        setContent(apiContent);
+        setStatus(PORTFOLIO_STATUS.ready);
       })
       .catch((error) => {
-        if (!isCurrent || error?.name === 'AbortError') {
+        if (requestRef.current !== controller || error?.name === 'AbortError') {
           return;
         }
 
         setStatus(PORTFOLIO_STATUS.unavailable);
 
-        // One concise, secret-free diagnostic in development only. There is no
-        // automatic retry loop; the public page shows a stable unavailable state.
+        // One concise, secret-free diagnostic in development only. The visitor
+        // can retry from the unavailable panel instead of waiting for a reload.
         if (import.meta.env.DEV) {
           console.warn(
             '[portfolio] API content unavailable; database-managed sections are empty.',
@@ -48,15 +58,21 @@ export function PortfolioProvider({ children }) {
           );
         }
       });
-
-    return () => {
-      isCurrent = false;
-      controller.abort();
-    };
   }, []);
 
+  useEffect(() => {
+    retry();
+
+    return () => {
+      requestRef.current?.abort();
+      requestRef.current = null;
+    };
+  }, [retry]);
+
   return (
-    <PortfolioContext.Provider value={{ ...content, status }}>{children}</PortfolioContext.Provider>
+    <PortfolioContext.Provider value={{ ...content, status, retry }}>
+      {children}
+    </PortfolioContext.Provider>
   );
 }
 

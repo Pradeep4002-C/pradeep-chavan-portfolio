@@ -1,5 +1,6 @@
 import { PORTFOLIO_STATUS, usePortfolio } from '../PortfolioContext.jsx';
 import Arrow from '../components/Arrow.jsx';
+import Button from '../components/Button.jsx';
 import Container from '../components/Container.jsx';
 import ProjectEntry from '../components/ProjectEntry.jsx';
 
@@ -16,12 +17,13 @@ function WorkStatus({ children }) {
 }
 
 export default function Work() {
-  const { profile, projects, status } = usePortfolio();
+  const { profile, projects, status, retry } = usePortfolio();
   const featured = projects.find((project) => project.featured) ?? null;
   // Keep every other project visible, including a legacy second featured
   // record, instead of filtering the whole featured flag out of the grid.
   const supportingProjects = projects.filter((project) => project.id !== featured?.id);
   const showProjects = status === PORTFOLIO_STATUS.ready && projects.length > 0;
+  const canRetry = typeof retry === 'function';
 
   return (
     <section
@@ -55,7 +57,17 @@ export default function Work() {
 
         {status === PORTFOLIO_STATUS.unavailable ? (
           <WorkStatus>
-            Selected work is temporarily unavailable. The rest of the portfolio is still available.
+            <div className="flex max-w-md flex-col items-center gap-5">
+              <p>
+                Selected work is temporarily unavailable. The rest of the portfolio is still
+                available.
+              </p>
+              {canRetry ? (
+                <Button variant="outline" size="sm" onClick={retry}>
+                  Try again
+                </Button>
+              ) : null}
+            </div>
           </WorkStatus>
         ) : null}
 
