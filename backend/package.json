@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "test": "node --test --test-concurrency=1"
+    "test": "node --test --test-concurrency=1",
+    "admin:unlock": "node src/scripts/unlockAdmin.js"
   },
   "dependencies": {
     "argon2": "^0.45.1",

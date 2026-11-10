@@ -175,6 +175,14 @@ test('missing assets and unknown API paths return JSON 404, never index.html', a
   assert.equal(missingAsset.text.includes('<html'), false);
   assert.equal(JSON.parse(missingAsset.text).error.code, 'NOT_FOUND');
 
+  // A browser-like Accept header must not turn an asset URL into the SPA.
+  const missingAssetHtml = await request(base, '/assets/missing-123.js', {
+    accept: 'text/html',
+  });
+  assert.equal(missingAssetHtml.response.status, 404);
+  assert.match(missingAssetHtml.contentType, /^application\/json/);
+  assert.equal(missingAssetHtml.text.includes(INDEX_MARKER), false);
+
   const missingFile = await request(base, '/missing-resume.pdf');
   assert.equal(missingFile.response.status, 404);
   assert.match(missingFile.contentType, /^application\/json/);
@@ -184,6 +192,13 @@ test('missing assets and unknown API paths return JSON 404, never index.html', a
   assert.equal(unknownApi.response.status, 404);
   assert.match(unknownApi.contentType, /^application\/json/);
   assert.equal(JSON.parse(unknownApi.text).error.code, 'NOT_FOUND');
+
+  // /api/* is mounted before the frontend router, so an HTML Accept still
+  // receives the API's JSON 404 envelope.
+  const unknownApiHtml = await request(base, '/api/unknown', { accept: 'text/html' });
+  assert.equal(unknownApiHtml.response.status, 404);
+  assert.match(unknownApiHtml.contentType, /^application\/json/);
+  assert.equal(unknownApiHtml.text.includes(INDEX_MARKER), false);
 
   // Even a real file under dist/api/ must not be exposed as an API response.
   const apiStaticFile = await request(base, '/api/leak.txt', { accept: 'application/json' });
@@ -201,7 +216,7 @@ test('public portfolio content requires revalidation instead of staying stale', 
 });
 
 test('does not return HTML to clients that explicitly request JSON', async () => {
-  for (const route of ['/', '/admin', '/admin/login']) {
+  for (const route of ['/', '/admin', '/admin/login', '/unknown']) {
     const { response, text, contentType } = await request(base, route, {
       accept: 'application/json',
     });
@@ -211,16 +226,42 @@ test('does not return HTML to clients that explicitly request JSON', async () =>
   }
 });
 
-test('SPA fallback matches the admin route prefix only', async () => {
-  for (const route of ['/administrator', '/adminfoo', '/adminfoo/bar']) {
-    const { response, contentType } = await request(base, route, { accept: 'text/html' });
-    assert.equal(response.status, 404, `${route} must not match the admin SPA prefix`);
+test('unknown public URLs return index.html with a 404 status', async () => {
+  const routes = [
+    '/unknown',
+    '/projects',
+    '/unknown/nested/route',
+    '/unknown?from=direct',
+    '/administrator',
+    '/adminfoo',
+    '/adminfoo/bar',
+  ];
+
+  for (const route of routes) {
+    const { response, text, contentType } = await request(base, route, { accept: 'text/html' });
+    assert.equal(response.status, 404, `${route} should return 404`);
+    assert.match(contentType, /^text\/html/, `${route} should be HTML`);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal(response.headers.get('x-robots-tag'), 'noindex');
+    assert.ok(text.includes(INDEX_MARKER), `${route} should render the SPA NotFound view`);
+  }
+});
+
+test('the SPA catch-all only answers GET and HEAD with HTML', async () => {
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+    const { response, text, contentType } = await request(base, '/unknown', {
+      method,
+      accept: 'text/html',
+    });
+    assert.equal(response.status, 404, `${method} should stay a JSON 404`);
     assert.match(contentType, /^application\/json/);
+    assert.equal(text.includes(INDEX_MARKER), false);
   }
 
-  const onlyGet = await request(base, '/admin', { method: 'POST', accept: 'text/html' });
-  assert.equal(onlyGet.response.status, 404);
-  assert.match(onlyGet.contentType, /^application\/json/);
+  const head = await request(base, '/unknown', { method: 'HEAD', accept: 'text/html' });
+  assert.equal(head.response.status, 404);
+  assert.match(head.contentType, /^text\/html/);
+  assert.equal(head.text, '');
 });
 
 test('an unbuilt frontend leaves the API and JSON 404 behaviour intact', async (t) => {

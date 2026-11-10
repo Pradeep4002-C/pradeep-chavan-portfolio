@@ -19,7 +19,14 @@ export const CONTACT_LIMITS = Object.freeze({
   messageMax: 5000,
 });
 
-export const MIN_FORM_AGE_MS = 2000;
+export const MIN_FORM_AGE_MS = 500;
+
+/**
+ * Browsers derive `formStartedAt` from the visitor's clock, which can run
+ * slightly ahead of the server. Accept up to five minutes of skew so a
+ * legitimate submission is not silently discarded.
+ */
+export const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 export const contactSchema = z
   .object({
@@ -85,15 +92,20 @@ export function formatContactIssues(error) {
   return fields;
 }
 
-/** A missing, malformed, future, or too-recent timestamp is treated as spam. */
+/**
+ * A missing or malformed timestamp is treated as spam, as is a past value less
+ * than 500 ms old or one more than five minutes in the future.
+ */
 export function isSubmissionTimingValid(value, now = Date.now()) {
-  return (
-    typeof value === 'number' &&
-    Number.isInteger(value) &&
-    value > 0 &&
-    value <= now &&
-    now - value >= MIN_FORM_AGE_MS
-  );
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    return false;
+  }
+
+  if (value > now) {
+    return value - now <= MAX_CLOCK_SKEW_MS;
+  }
+
+  return now - value >= MIN_FORM_AGE_MS;
 }
 
 /** A non-empty honeypot, including a non-string value, is treated as spam. */

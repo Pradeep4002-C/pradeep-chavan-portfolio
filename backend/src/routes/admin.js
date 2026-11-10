@@ -89,6 +89,18 @@ const PROJECT_WRITE_ERROR = {
 };
 
 /**
+ * The public Work section has one featured slot. After a project is saved with
+ * `featured: true`, clear the flag on every other project so legacy data or two
+ * concurrent administrators cannot leave multiple featured records visible.
+ */
+async function clearOtherFeaturedProjects(projectId) {
+  await Project.updateMany(
+    { _id: { $ne: projectId }, featured: true },
+    { $set: { featured: false } },
+  );
+}
+
+/**
  * Administrator API. Every route is behind requireAuth; state-changing routes
  * additionally enforce the trusted-origin policy shared with the auth routes.
  * Administrator identity always comes from the session, never the request body.
@@ -149,6 +161,9 @@ export function createAdminRouter({ clientOrigin } = {}) {
 
     try {
       const created = await Project.create(parsed.data);
+      if (created.featured) {
+        await clearOtherFeaturedProjects(created._id);
+      }
       res.status(201).json({ data: { project: toAdminProject(created) } });
     } catch (error) {
       writeError(error, res, next, {
@@ -239,6 +254,9 @@ export function createAdminRouter({ clientOrigin } = {}) {
       }
 
       const updated = await project.save();
+      if (updated.featured) {
+        await clearOtherFeaturedProjects(updated._id);
+      }
       res.status(200).json({ data: { project: toAdminProject(updated) } });
     } catch (error) {
       writeError(error, res, next, {

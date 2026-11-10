@@ -20,8 +20,10 @@ frontend/
 ├── tests/
 │   ├── admin-api.test.js
 │   ├── admin-content-api.test.js
+│   ├── admin-profile.test.js
 │   ├── background-content.test.js
 │   ├── contact-api.test.js
+│   ├── hero-copy.test.js
 │   ├── portfolio-content.test.js
 │   ├── project-form.test.js
 │   ├── public-page.test.js
@@ -66,9 +68,13 @@ frontend/
 │   │   ├── Navbar.jsx
 │   │   ├── ProjectArtwork.jsx
 │   │   ├── ProjectEntry.jsx
-│   │   └── TechnologyTags.jsx
+│   │   ├── TechnologyTags.jsx
+│   │   ├── WorkflowArtwork.jsx
+│   │   └── workflow.js
 │   ├── data/
 │   │   └── portfolio.js
+│   ├── pages/
+│   │   └── NotFound.jsx
 │   ├── sections/
 │   │   ├── About.jsx
 │   │   ├── Background.jsx
@@ -76,11 +82,13 @@ frontend/
 │   │   ├── Contact.jsx
 │   │   ├── Footer.jsx
 │   │   ├── Hero.jsx
+│   │   ├── heroCopy.js
 │   │   ├── Skills.jsx
 │   │   ├── skillsContent.js
 │   │   └── Work.jsx
 │   ├── App.jsx
 │   ├── main.jsx
+│   ├── PortfolioContext.jsx
 │   └── index.css
 └── docs/
     ├── design-notes.md
@@ -93,8 +101,10 @@ frontend/
   commands from this folder or use the root aliases.
 - **`vite.config.js`** — registers the React and Tailwind Vite plugins and
   proxies `/api` to the local Express server.
-- **`index.html`** — the browser document, metadata, favicon link, and `#root`
-  mount point.
+- **`index.html`** — the browser document, favicon link, and `#root` mount
+  point. It also contains the description, canonical, Open Graph, and Twitter
+  card metadata; the `https://example.com/` values are placeholders for the
+  final public origin and social image.
 - **`public/`** — files served as-is: the resume PDF, favicon, and
   `robots.txt`.
 
@@ -208,6 +218,12 @@ framework.
   to the artwork switch, and renders a demo action only when the project has a
   valid demo URL.
 - **`TechnologyTags.jsx`** — reusable project technology list.
+
+### `src/pages/`: fallback route
+
+- **`NotFound.jsx`** — branded 404 view. The Express frontend router serves it
+  with a real 404 status for unknown public URLs, so visitors get a portfolio
+  page while search engines still see the correct response.
 
 ### `src/sections/`: public page regions
 

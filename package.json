@@ -17,6 +17,7 @@
     "start:server": "npm --prefix backend run start",
     "seed:content": "node backend/scripts/seed-content.js",
     "admin:create": "node backend/scripts/create-admin.js",
+    "admin:unlock": "node backend/src/scripts/unlockAdmin.js",
     "test:server": "npm --prefix backend test",
     "test:frontend": "npm --prefix frontend test",
     "test": "npm run test:server && npm run test:frontend",

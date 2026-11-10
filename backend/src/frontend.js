@@ -24,17 +24,20 @@ export function isFrontendBuilt(distDir = FRONTEND_DIST_DIR) {
 }
 
 /**
- * Builds a router that serves the built assets and adds an SPA fallback for
- * the client-side route families that exist in this application:
+ * Builds a router that serves the built assets and the SPA entry document for
+ * every browser navigation:
  *
  *   /            the public portfolio (hash links such as /#work)
  *   /admin/*     the administrator application, including /admin/login
+ *   other HTML   index.html with status 404, so the SPA can render its branded
+ *                NotFound view while crawlers receive a true 404 response.
  *
- * The fallback only answers GET/HEAD requests that prefer HTML, so an API
- * client asking for JSON never receives index.html. Unknown assets and API
- * paths therefore continue to the JSON 404 handler instead of being replaced
- * with HTML. Express 5 no longer accepts a bare '*' path, so a RegExp route is
- * used for the admin prefix.
+ * Requests for /api/*, paths that look like static files (anything under
+ * /assets/ or with an extension in the final segment), non-GET/HEAD methods,
+ * and clients that do not accept HTML fall through to the JSON 404 handler.
+ * That keeps API clients and missing assets from ever receiving index.html.
+ * Express 5 no longer accepts a bare '*' path, so a RegExp route is used for
+ * the admin prefix and a final middleware supplies the public catch-all.
  */
 export function createFrontendRouter({ distDir = FRONTEND_DIST_DIR } = {}) {
   const indexFile = path.join(distDir, 'index.html');
@@ -58,7 +61,7 @@ export function createFrontendRouter({ distDir = FRONTEND_DIST_DIR } = {}) {
     }),
   );
 
-  function sendIndex(req, res, next) {
+  function sendIndex(req, res, next, status = 200) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       next();
       return;
@@ -71,9 +74,18 @@ export function createFrontendRouter({ distDir = FRONTEND_DIST_DIR } = {}) {
       return;
     }
 
-    // Revalidate on every navigation so a new deploy is picked up while the
-    // ETag still allows a cheap 304 response.
-    res.setHeader('Cache-Control', REVALIDATE_CACHE);
+    if (status === 404) {
+      // A 404 must never be cached: a later deploy may add the route. Tell
+      // crawlers explicitly that this response is not an indexable page.
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('X-Robots-Tag', 'noindex');
+    } else {
+      // Revalidate on every navigation so a new deploy is picked up while the
+      // ETag still allows a cheap 304 response.
+      res.setHeader('Cache-Control', REVALIDATE_CACHE);
+    }
+
+    res.status(status);
     res.sendFile(indexFile, (error) => {
       if (error) {
         next(error);
@@ -81,8 +93,34 @@ export function createFrontendRouter({ distDir = FRONTEND_DIST_DIR } = {}) {
     });
   }
 
-  router.get('/', sendIndex);
-  router.get(/^\/admin(?:\/.*)?$/, sendIndex);
+  router.get('/', (req, res, next) => sendIndex(req, res, next, 200));
+  router.get(/^\/admin(?:\/.*)?$/, (req, res, next) => sendIndex(req, res, next, 200));
+
+  // Public catch-all. It only claims GET/HEAD HTML navigations; everything
+  // else falls through so the final JSON notFound middleware can answer it.
+  router.use((req, res, next) => {
+    const pathname = req.path;
+
+    if (pathname === '/api' || pathname.startsWith('/api/')) {
+      next();
+      return;
+    }
+
+    if (pathname === '/assets' || pathname.startsWith('/assets/')) {
+      next();
+      return;
+    }
+
+    const lastSegment = pathname.slice(pathname.lastIndexOf('/') + 1);
+    if (lastSegment.includes('.')) {
+      next();
+      return;
+    }
+
+    // A real 404 status with the SPA entry document: crawlers see a missing
+    // page while the React NotFound view handles the visitor experience.
+    sendIndex(req, res, next, 404);
+  });
 
   return router;
 }

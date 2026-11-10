@@ -96,9 +96,10 @@ export function createApp({
     app.use(createFrontendRouter({ distDir: frontendDist }));
   }
 
-  // Unknown paths reach this point: API clients and missing assets get JSON,
-  // never a substitute HTML document. The frontend router above has already
-  // handled / and /admin/* for browser navigations.
+  // Unknown paths reach this point only when the frontend router declined
+  // them: API clients, missing assets, non-GET requests, and non-HTML clients
+  // get JSON, never a substitute HTML document. The frontend router above has
+  // already answered known routes and unknown HTML navigations (404 SPA).
   app.use(notFound);
   app.use(errorHandler);
 

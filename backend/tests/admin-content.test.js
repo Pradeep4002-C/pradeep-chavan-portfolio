@@ -1087,6 +1087,52 @@ test('reflects profile changes through the public portfolio API', async (t) => {
   assert.equal('_id' in portfolio.json.data.profile, false);
 });
 
+test('accepts cleared optional profile fields and exposes them as empty', async (t) => {
+  const server = await startServer();
+  t.after(server.close);
+  const cookie = await loginAsAdmin(server.base);
+
+  const cleared = await request(server.base, PROFILE_PATH, {
+    method: 'PUT',
+    body: validProfile({
+      headline: '',
+      intro: '',
+      bio: [],
+      location: '',
+      github: '',
+      linkedin: '',
+      leetcode: '',
+      resumePath: '',
+    }),
+    cookie,
+  });
+
+  assert.equal(cleared.response.status, 200);
+  assert.equal(cleared.json.data.profile.headline, '');
+  assert.equal(cleared.json.data.profile.intro, '');
+  assert.deepEqual(cleared.json.data.profile.bio, []);
+  assert.equal(cleared.json.data.profile.location, '');
+  assert.equal(cleared.json.data.profile.github, '');
+  assert.equal(cleared.json.data.profile.linkedin, '');
+  assert.equal(cleared.json.data.profile.leetcode, '');
+  assert.equal(cleared.json.data.profile.resumePath, '');
+
+  const stored = await Profile.findOne({ key: 'profile' }).lean();
+  assert.equal(stored.intro, '');
+  assert.deepEqual(stored.bio, []);
+  assert.equal(stored.resumePath, '');
+
+  const portfolio = await request(server.base, '/api/portfolio');
+  assert.equal(portfolio.response.status, 200);
+  assert.equal(portfolio.json.data.profile.intro, '');
+  assert.deepEqual(portfolio.json.data.profile.bio, []);
+  assert.equal(portfolio.json.data.profile.location, '');
+  assert.equal(portfolio.json.data.profile.github, '');
+  assert.equal(portfolio.json.data.profile.linkedin, '');
+  assert.equal(portfolio.json.data.profile.leetcode, '');
+  assert.equal(portfolio.json.data.profile.resumePath, '');
+});
+
 /* ------------------------------------------------------------------ *
  * Regression
  * ------------------------------------------------------------------ */

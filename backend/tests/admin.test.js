@@ -320,6 +320,41 @@ test('creates a project and persists the exact MongoDB document', async (t) => {
   assert.equal(stored.demoUrl, 'https://example.com/demo');
 });
 
+test('creating a featured project un-features every other project', async (t) => {
+  const server = await startServer();
+  t.after(server.close);
+  const cookie = await loginAsAdmin(server.base);
+
+  const previous = await Project.create(
+    validProject({ slug: 'previous-featured', title: 'Previous Featured', featured: true }),
+  );
+
+  const payload = validProject({
+    slug: 'new-featured',
+    title: 'New Featured',
+    featured: true,
+    order: 2,
+  });
+
+  const created = await request(server.base, PROJECTS_PATH, {
+    method: 'POST',
+    body: payload,
+    cookie,
+  });
+  assert.equal(created.response.status, 201);
+  assert.equal(created.json.data.project.featured, true);
+
+  const [previousFresh, newFresh, featuredCount] = await Promise.all([
+    Project.findById(previous._id).lean(),
+    Project.findOne({ slug: 'new-featured' }).lean(),
+    Project.countDocuments({ featured: true }),
+  ]);
+
+  assert.equal(previousFresh.featured, false);
+  assert.equal(newFresh.featured, true);
+  assert.equal(featuredCount, 1);
+});
+
 test('retrieves a single project by id', async (t) => {
   const server = await startServer();
   t.after(server.close);
@@ -360,6 +395,37 @@ test('updates the title, description, and technologies', async (t) => {
 
   const reread = await request(server.base, `${PROJECTS_PATH}/${stored._id}`, { cookie });
   assert.equal(reread.json.data.project.title, 'Renamed Project');
+});
+
+test('featuring a project un-features the previously featured project', async (t) => {
+  const server = await startServer();
+  t.after(server.close);
+  const cookie = await loginAsAdmin(server.base);
+
+  const previous = await Project.create(
+    validProject({ slug: 'old-featured', title: 'Old Featured', featured: true }),
+  );
+  const target = await Project.create(
+    validProject({ slug: 'new-target', title: 'New Target', featured: false }),
+  );
+
+  const updated = await request(server.base, `${PROJECTS_PATH}/${target._id}`, {
+    method: 'PATCH',
+    body: { featured: true },
+    cookie,
+  });
+  assert.equal(updated.response.status, 200);
+  assert.equal(updated.json.data.project.featured, true);
+
+  const [previousFresh, targetFresh, featuredCount] = await Promise.all([
+    Project.findById(previous._id).lean(),
+    Project.findById(target._id).lean(),
+    Project.countDocuments({ featured: true }),
+  ]);
+
+  assert.equal(previousFresh.featured, false);
+  assert.equal(targetFresh.featured, true);
+  assert.equal(featuredCount, 1);
 });
 
 test('publishes and unpublishes a project and hides unpublished projects from the public API', async (t) => {

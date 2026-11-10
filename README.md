@@ -49,6 +49,7 @@ name and does not use AI. See `docs/ARCHITECTURE.md` for the full data flow.
 │   │   ├── middleware/       Auth, origin, rate limit, cache, errors
 │   │   ├── models/           Mongoose models
 │   │   ├── routes/           Public and administrator API routes
+│   │   ├── scripts/          Administrator lockout recovery CLI
 │   │   └── validation/       Zod request schemas
 │   └── tests/                API, logger, and serving tests
 ├── docs/                     Owner, architecture, and interview guides
@@ -248,6 +249,21 @@ line argument or logged. The account is written to the database configured by
 
 Then open `/admin/login` on the public origin and sign in.
 
+## Recover a locked administrator
+
+Ten consecutive failed sign-ins lock the administrator account for 15 minutes.
+If the lockout is triggered repeatedly, clear it from a trusted deployment
+terminal where `MONGODB_URI` is already set in the environment:
+
+```bash
+npm run admin:unlock -- --email <your-email>
+```
+
+The command runs `backend/src/scripts/unlockAdmin.js` and only resets
+`failedAttempts` and `lockedUntil`. It does not change the password, sessions,
+or `lastLoginAt`. Never pass the connection string on the command line, because
+shell history may retain it.
+
 ## Project editor and workflow artwork
 
 `/admin/projects` lists projects. Create and edit actions open dedicated pages:
@@ -404,7 +420,9 @@ prove that a remote deployment succeeded.
 - Sessions are stored in MongoDB and use secure, HTTP-only cookies in
   production.
 - Login and contact endpoints are rate limited.
-- Login responses are generic, and account lockout details are not exposed.
+- Login responses are generic, and account lockout details are not exposed. An
+  owner-only CLI (`npm run admin:unlock`) clears a lockout without changing
+  credentials or sessions.
 - Authentication and administrator responses are not cacheable.
 - Public portfolio data is revalidated, so deleted or unpublished records do
   not remain visible indefinitely.

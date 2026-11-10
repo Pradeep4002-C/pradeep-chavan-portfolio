@@ -4,6 +4,11 @@ import test, { after, before, beforeEach } from 'node:test';
 import mongoose from 'mongoose';
 import { createApp } from '../src/app.js';
 import { ContactMessage } from '../src/models/ContactMessage.js';
+import {
+  isSubmissionTimingValid,
+  MAX_CLOCK_SKEW_MS,
+  MIN_FORM_AGE_MS,
+} from '../src/validation/contact.js';
 
 /*
  * These tests require a local MongoDB (or TEST_MONGODB_URI). The default is a
@@ -191,14 +196,23 @@ test('suppresses a honeypot submission without storing it', async (t) => {
   assert.equal(await ContactMessage.countDocuments(), 0);
 });
 
-test('suppresses missing, malformed, future, and too-fast timing values', async (t) => {
+test('accepts timing at the 500 ms boundary and within five minutes of skew', () => {
+  const now = Date.now();
+
+  assert.equal(isSubmissionTimingValid(now - MIN_FORM_AGE_MS, now), true);
+  assert.equal(isSubmissionTimingValid(now - MIN_FORM_AGE_MS + 1, now), false);
+  assert.equal(isSubmissionTimingValid(now, now), false);
+  assert.equal(isSubmissionTimingValid(now + MAX_CLOCK_SKEW_MS, now), true);
+  assert.equal(isSubmissionTimingValid(now + MAX_CLOCK_SKEW_MS + 1, now), false);
+});
+
+test('suppresses missing, malformed, too-fast, and far-future timing values', async (t) => {
   const server = await startServer({ contactRateLimit: { limit: 100 } });
   t.after(server.close);
 
   const timingValues = [
     Date.now(),
-    Date.now() - 1000,
-    Date.now() + 60000,
+    Date.now() + MAX_CLOCK_SKEW_MS + 60000,
     0,
     -1,
     1.5,
@@ -220,6 +234,23 @@ test('suppresses missing, malformed, future, and too-fast timing values', async 
   }
 
   assert.equal(await ContactMessage.countDocuments(), 0);
+});
+
+test('saves a submission when the client clock is two minutes ahead', async (t) => {
+  const server = await startServer({ contactRateLimit: { limit: 100 } });
+  t.after(server.close);
+
+  const { response, json } = await send(server.base, CONTACT_PATH, {
+    body: validPayload({ formStartedAt: Date.now() + 2 * 60 * 1000 }),
+  });
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(json, { data: { message: 'Your message has been received.' } });
+
+  const saved = await ContactMessage.findOne({ email: 'visitor@example.com' }).lean();
+  assert.ok(saved, 'expected the clock-ahead submission to be stored');
+  assert.equal(saved.name, 'Test Visitor');
+  assert.equal(saved.message, 'This is a valid test message.');
 });
 
 test('rate limits after the configured threshold with JSON and standard headers', async (t) => {

@@ -54,7 +54,7 @@ Browser
   │
   └─ GET /api/portfolio                 portfolio router
         ├─ Profile.findOne(...)         approved public fields only
-        ├─ Project.find({published})    sorted by order, then title
+        ├─ Project.find({published})    sorted by order, then slug
         ├─ SkillGroup.find(...)         approved public fields only
         ├─ Education.find(...)          approved public fields only
         ├─ Certification.find(...)      approved public fields only

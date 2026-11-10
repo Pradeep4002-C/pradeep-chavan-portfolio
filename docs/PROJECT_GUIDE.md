@@ -42,6 +42,7 @@ a neutral drawing instead of borrowing another project's diagram.
 │   │   ├── middleware/       Auth, origin, rate limit, cache, errors
 │   │   ├── models/           Mongoose models
 │   │   ├── routes/           Public and administrator APIs
+│   │   ├── scripts/          Administrator lockout recovery CLI
 │   │   └── validation/       Zod request contracts
 │   └── tests/                API, logger, and serving integration tests
 └── docs/                     This guide, architecture notes, interview notes
@@ -205,7 +206,7 @@ unchanged. Existing project documents without workflow data remain valid.
 - **Published** controls whether a project appears in `GET /api/portfolio`.
 - **Draft** records stay visible in the dashboard only.
 - **Featured** selects the larger project entry in the public Work section.
-- **Display order** sorts published projects ascending. Title is the secondary
+- **Display order** sorts published projects ascending. Slug is the secondary
   sort when two projects share an order.
 
 Public portfolio responses are revalidated (`max-age=0, must-revalidate`), so a
@@ -276,6 +277,21 @@ The password is entered at a hidden prompt, must be at least 12 characters, and
 is never accepted as a command-line argument or logged. The command writes to the
 database configured by `MONGODB_URI`.
 
+### Recovering a locked administrator
+
+Ten consecutive failed sign-ins lock the account for 15 minutes. If the owner
+cannot wait, run this from a trusted deployment terminal with `MONGODB_URI`
+already present in the process environment:
+
+```bash
+npm run admin:unlock -- --email <your-email>
+```
+
+The command runs `backend/src/scripts/unlockAdmin.js`. It resets only
+`failedAttempts` to `0` and `lockedUntil` to `null`; the password, sessions, and
+`lastLoginAt` are untouched. The script does not read a `.env` file, so the
+environment must be configured before it starts.
+
 ## Tests and verification
 
 From the repository root:
@@ -312,7 +328,7 @@ stale seed data.
 **HOW** — `frontend/src/PortfolioContext.jsx` starts in `loading` with approved
 profile copy only. `frontend/src/api/portfolio.js` fetches and normalizes the
 response. `backend/src/routes/portfolio.js` queries MongoDB with explicit field
-projections and returns published projects sorted by order and title.
+projections and returns published projects sorted by order and slug.
 
 **TRADE-OFFS** — The page shows an empty state until data is confirmed. It is
 slightly slower than rendering bundled projects immediately, but it never shows
