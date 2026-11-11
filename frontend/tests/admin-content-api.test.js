@@ -83,6 +83,19 @@ test('updateMessage PATCHes only the read flag and returns the message', async (
   assert.equal(updated.read, true);
 });
 
+test('updateMessage PATCHes visibility and returns the persisted hidden state', async () => {
+  const calls = mockFetch(() =>
+    jsonResponse({ data: { message: { id: '1', hidden: false } } }),
+  );
+
+  const updated = await updateMessage('1', { hidden: false });
+
+  assert.equal(calls[0].init.method, 'PATCH');
+  assert.equal(calls[0].url, '/api/admin/messages/1');
+  assert.deepEqual(JSON.parse(calls[0].init.body), { hidden: false });
+  assert.equal(updated.hidden, false);
+});
+
 test('deleteMessage DELETEs an encoded id and tolerates 204', async () => {
   const calls = mockFetch(() => noContent());
 

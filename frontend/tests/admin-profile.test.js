@@ -251,8 +251,8 @@ async function mountProfile() {
   };
 }
 
-function findButton(label) {
-  return Array.from(document.querySelectorAll('button')).find(
+function findButton(label, scope = document) {
+  return Array.from(scope.querySelectorAll('button')).find(
     (button) => button.textContent.replace(/\s+/g, ' ').trim() === label,
   );
 }
@@ -399,18 +399,17 @@ test('marks a biography paragraph dirty and clears the snapshot after a successf
   assert.equal(router.state.location.pathname, '/admin');
 });
 
-test('confirms before Reload discards edits and only refetches when accepted', async (t) => {
+test('Reload uses the custom discard dialog and only refetches when accepted', async (t) => {
   const api = mockProfileApi();
   const { unmount } = await mountProfile();
   t.after(unmount);
 
   await editField('profile-name', 'Changed Name');
 
-  const confirmMessages = [];
-  let confirmAnswer = false;
+  const nativeConfirmCalls = [];
   window.confirm = (message) => {
-    confirmMessages.push(message);
-    return confirmAnswer;
+    nativeConfirmCalls.push(message);
+    return true;
   };
 
   await act(async () => {
@@ -418,26 +417,52 @@ test('confirms before Reload discards edits and only refetches when accepted', a
   });
   await flush();
 
-  assert.deepEqual(confirmMessages, [EXACT_UNSAVED_MESSAGE]);
+  let dialog = document.querySelector('[role="alertdialog"]');
+  assert.ok(dialog, 'Reload with a dirty form must open the custom confirmation');
+  assert.match(dialog.textContent, /Discard unsaved changes\?/);
+  assert.ok(dialog.textContent.includes(EXACT_UNSAVED_MESSAGE));
+  assert.deepEqual(nativeConfirmCalls, [], 'window.confirm must not be used');
   assert.equal(
     document.getElementById('profile-name').value,
     'Changed Name',
-    'declining the confirmation must preserve the draft',
+    'opening the confirmation must preserve the draft',
   );
   assert.equal(
     api.profileRequests().length,
     1,
-    'declining the confirmation must not refetch the profile',
+    'opening the confirmation must not refetch the profile',
   );
 
-  confirmAnswer = true;
+  await act(async () => {
+    findButton('Cancel', dialog).click();
+  });
+  await flush();
+
+  assert.equal(document.querySelector('[role="alertdialog"]'), null);
+  assert.equal(
+    document.getElementById('profile-name').value,
+    'Changed Name',
+    'cancelling must return to the form with the draft intact',
+  );
+  assert.equal(api.profileRequests().length, 1, 'cancelling must not refetch');
+
   await act(async () => {
     findButton('Reload').click();
   });
   await flush();
+
+  dialog = document.querySelector('[role="alertdialog"]');
+  assert.ok(dialog, 'Reload must ask again while the draft is still dirty');
+  assert.ok(dialog.textContent.includes(EXACT_UNSAVED_MESSAGE));
+
+  await act(async () => {
+    findButton('Discard changes', dialog).click();
+  });
+  await flush();
   await flush();
 
-  assert.deepEqual(confirmMessages, [EXACT_UNSAVED_MESSAGE, EXACT_UNSAVED_MESSAGE]);
+  assert.equal(document.querySelector('[role="alertdialog"]'), null);
+  assert.deepEqual(nativeConfirmCalls, [], 'window.confirm must never be called');
   assert.equal(api.profileRequests().length, 2, 'accepting must refetch the profile');
   assert.equal(
     document.getElementById('profile-name').value,

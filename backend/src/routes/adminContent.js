@@ -174,7 +174,7 @@ function createOrderedResource({
  * Contact inbox
  * ------------------------------------------------------------------ */
 
-const MESSAGE_FIELDS = 'name email subject message read createdAt updatedAt';
+const MESSAGE_FIELDS = 'name email subject message read hidden createdAt updatedAt';
 
 function serializeMessage(doc) {
   const value = typeof doc?.toObject === 'function' ? doc.toObject() : (doc ?? {});
@@ -185,6 +185,9 @@ function serializeMessage(doc) {
     subject: value.subject ?? '',
     message: value.message ?? '',
     read: Boolean(value.read),
+    // Documents created before visibility existed have no stored value; the
+    // inbox has always shown them collapsed, so preserve that behaviour.
+    hidden: value.hidden ?? true,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   };
@@ -250,7 +253,7 @@ function createMessageRoutes(requireTrustedOrigin) {
     try {
       const updated = await ContactMessage.findByIdAndUpdate(
         req.params.id,
-        { $set: { read: parsed.data.read } },
+        { $set: parsed.data },
         { returnDocument: 'after' },
       )
         .select(MESSAGE_FIELDS)

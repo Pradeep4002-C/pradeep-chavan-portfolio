@@ -131,9 +131,11 @@ export const messageListSchema = z
 
 export const messageUpdateSchema = z
   .object({
-    read: z.boolean({ error: 'Read must be true or false.' }),
+    read: z.boolean({ error: 'Read must be true or false.' }).optional(),
+    hidden: z.boolean({ error: 'Hidden must be true or false.' }).optional(),
   })
-  .strict();
+  .strict()
+  .refine((data) => Object.keys(data).length > 0, atLeastOneField);
 
 /* ------------------------------------------------------------------ *
  * Skill groups

@@ -1,8 +1,11 @@
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import { useAdminAuth } from './AdminAuthContext.jsx';
 import { AdminBrand, AdminLoading, AdminPill, Notice, describeError } from './AdminUi.jsx';
+import InactivityWarningDialog from './InactivityWarningDialog.jsx';
+import { INACTIVITY_TIMEOUT_MINUTES, INACTIVITY_WARNING_SECONDS } from './inactivity.js';
+import { useInactivityLogout } from './useInactivityLogout.js';
 
 const NAV_ITEMS = [
   { to: '/admin', label: 'Overview', end: true },
@@ -38,6 +41,16 @@ function NavList({ onNavigate }) {
   );
 }
 
+function SignOutReminder({ className = '' }) {
+  return (
+    <p className={`text-xs leading-relaxed text-muted ${className}`}>
+      For security, sign out when you&apos;re finished. Inactive sessions show a{' '}
+      {INACTIVITY_WARNING_SECONDS}-second warning, then end automatically after{' '}
+      {INACTIVITY_TIMEOUT_MINUTES} minutes.
+    </p>
+  );
+}
+
 /** Responsive administrator shell: sidebar on desktop, disclosure on mobile. */
 export default function AdminLayout() {
   const { admin, logout, markUnauthenticated } = useAdminAuth();
@@ -63,24 +76,41 @@ export default function AdminLayout() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [menuOpen]);
 
-  async function handleLogout() {
-    if (loggingOut) {
-      return;
-    }
-    setLoggingOut(true);
-    setLogoutError(null);
-    try {
-      await logout();
-    } catch (error) {
-      if (error?.status === 401) {
-        markUnauthenticated();
+  const performLogout = useCallback(
+    async ({ inactivity = false } = {}) => {
+      if (loggingOut) {
         return;
       }
-      setLogoutError(describeError(error, 'We could not sign you out. Please try again.'));
-    } finally {
-      setLoggingOut(false);
-    }
-  }
+      setLoggingOut(true);
+      setLogoutError(null);
+
+      try {
+        await logout();
+      } catch (error) {
+        if (!inactivity && error?.status !== 401) {
+          setLogoutError(describeError(error, 'We could not sign you out. Please try again.'));
+          return;
+        }
+        markUnauthenticated();
+      } finally {
+        setLoggingOut(false);
+      }
+
+      if (inactivity && typeof window !== 'undefined') {
+        // A hard replace also bypasses an editor's unsaved-changes blocker.
+        // Signing out must win over preserving an abandoned draft.
+        window.location.replace('/admin/login');
+      }
+    },
+    [loggingOut, logout, markUnauthenticated],
+  );
+
+  const { warningOpen, secondsRemaining, staySignedIn, signOutNow } = useInactivityLogout(
+    () => performLogout({ inactivity: true }),
+    {
+      enabled: Boolean(admin),
+    },
+  );
 
   const identity = admin ?? { name: '', email: '' };
 
@@ -107,9 +137,10 @@ export default function AdminLayout() {
             {identity.email}
           </p>
           <div className="mt-3 flex flex-col gap-2">
-            <Button variant="outline" size="sm" onClick={handleLogout} disabled={loggingOut}>
+            <Button variant="outline" size="sm" onClick={() => performLogout()} disabled={loggingOut}>
               {loggingOut ? 'Signing out…' : 'Sign out'}
             </Button>
+            <SignOutReminder className="text-center" />
             <a
               href="/"
               className="text-center text-xs font-semibold text-muted underline decoration-transparent underline-offset-2 transition-ui hover:text-accent hover:decoration-current"
@@ -151,7 +182,7 @@ export default function AdminLayout() {
               <p className="truncate text-sm font-semibold text-ink">{identity.name || 'Administrator'}</p>
               <p className="truncate text-xs text-muted">{identity.email}</p>
               <div className="mt-3 flex items-center gap-3">
-                <Button variant="outline" size="sm" onClick={handleLogout} disabled={loggingOut}>
+                <Button variant="outline" size="sm" onClick={() => performLogout()} disabled={loggingOut}>
                   {loggingOut ? 'Signing out…' : 'Sign out'}
                 </Button>
                 <a
@@ -161,6 +192,7 @@ export default function AdminLayout() {
                   View public site
                 </a>
               </div>
+              <SignOutReminder className="mt-2" />
             </div>
           </div>
         ) : null}
@@ -180,6 +212,15 @@ export default function AdminLayout() {
           </Suspense>
         </main>
       </div>
+
+      {warningOpen ? (
+        <InactivityWarningDialog
+          secondsRemaining={secondsRemaining}
+          onStaySignedIn={staySignedIn}
+          onSignOut={signOutNow}
+          busy={loggingOut}
+        />
+      ) : null}
     </div>
   );
 }

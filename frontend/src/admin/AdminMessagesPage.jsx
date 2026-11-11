@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import Button from '../components/Button.jsx';
 import { deleteMessage, fetchMessages, updateMessage } from './adminApi.js';
 import { useAdminAuth } from './AdminAuthContext.jsx';
+import AdminMessageBody from './AdminMessageBody.jsx';
+import { applyMessageUpdate, isMessageHidden, nextHiddenValue } from './messageState.js';
 import {
   AdminErrorState,
   AdminLoading,
@@ -50,7 +52,6 @@ export default function AdminMessagesPage() {
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [expandedId, setExpandedId] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
@@ -107,8 +108,41 @@ export default function AdminMessagesPage() {
     }
     setFilter(value);
     setPage(1);
-    setExpandedId(null);
     setStatus('loading');
+  }
+
+  async function handleToggleVisibility(message) {
+    if (busyId) {
+      return;
+    }
+
+    const nextHidden = nextHiddenValue(message);
+    const optimistic = { ...message, hidden: nextHidden };
+    setBusyId(message.id);
+    setNotice(null);
+    setData((current) => applyMessageUpdate(current, optimistic));
+
+    try {
+      const updated = await updateMessage(message.id, { hidden: nextHidden });
+      setData((current) => applyMessageUpdate(current, updated));
+      setNotice({
+        tone: 'success',
+        message: updated.hidden ? 'Message hidden.' : 'Message visible.',
+      });
+    } catch (requestError) {
+      // Put the row back exactly as it was before the optimistic update.
+      setData((current) => applyMessageUpdate(current, message));
+      if (requestError?.status === 401) {
+        markUnauthenticated();
+        return;
+      }
+      setNotice({
+        tone: 'error',
+        message: describeError(requestError, 'We could not change the message visibility.'),
+      });
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function handleToggleRead(message) {
@@ -119,6 +153,7 @@ export default function AdminMessagesPage() {
     setNotice(null);
     try {
       const updated = await updateMessage(message.id, { read: !message.read });
+      setData((current) => applyMessageUpdate(current, updated));
       setNotice({
         tone: 'success',
         message: updated.read ? 'Message marked as read.' : 'Message marked as unread.',
@@ -147,9 +182,6 @@ export default function AdminMessagesPage() {
     try {
       await deleteMessage(target.id);
       setDeleteTarget(null);
-      if (expandedId === target.id) {
-        setExpandedId(null);
-      }
       setNotice({ tone: 'success', message: `The message from ${target.name} was deleted.` });
       await load(undefined, { silent: true });
     } catch (requestError) {
@@ -173,8 +205,14 @@ export default function AdminMessagesPage() {
   return (
     <div>
       <PageHeader title="Messages" description="Contact form messages saved in MongoDB.">
-        <Button variant="outline" size="sm" onClick={reload} disabled={status === 'loading'}>
-          Refresh
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={reload}
+          disabled={status === 'loading'}
+          aria-busy={status === 'loading'}
+        >
+          {status === 'loading' ? 'Refreshing…' : 'Refresh'}
         </Button>
       </PageHeader>
 
@@ -230,7 +268,8 @@ export default function AdminMessagesPage() {
         <>
           <ul className="flex flex-col gap-3">
             {messages.map((message) => {
-              const expanded = expandedId === message.id;
+              const expanded = !isMessageHidden(message);
+              const bodyId = `admin-message-body-${message.id}`;
               return (
                 <li key={message.id} className="rounded-2xl border border-line bg-surface p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -248,20 +287,16 @@ export default function AdminMessagesPage() {
                     <p className="mt-2 text-sm font-semibold text-ink">{message.subject}</p>
                   ) : null}
 
-                  {expanded ? (
-                    <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink">
-                      {message.message}
-                    </p>
-                  ) : (
-                    <p className="mt-2 truncate text-sm text-muted">{message.message}</p>
-                  )}
+                  <AdminMessageBody id={bodyId} message={message} />
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       aria-expanded={expanded}
-                      onClick={() => setExpandedId(expanded ? null : message.id)}
+                      aria-controls={bodyId}
+                      onClick={() => handleToggleVisibility(message)}
+                      disabled={Boolean(busyId)}
                     >
                       {expanded ? 'Hide message' : 'View message'}
                     </Button>
@@ -269,7 +304,7 @@ export default function AdminMessagesPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleToggleRead(message)}
-                      disabled={busyId === message.id}
+                      disabled={Boolean(busyId)}
                     >
                       {message.read ? 'Mark unread' : 'Mark read'}
                     </Button>
@@ -277,7 +312,7 @@ export default function AdminMessagesPage() {
                       type="button"
                       className={dangerButtonClass}
                       onClick={() => setDeleteTarget(message)}
-                      disabled={busyId === message.id}
+                      disabled={Boolean(busyId)}
                     >
                       Delete
                     </button>

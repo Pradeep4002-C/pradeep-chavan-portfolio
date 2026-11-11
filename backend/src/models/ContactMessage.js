@@ -37,6 +37,12 @@ const contactMessageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Persisted inbox presentation state: true means the message body is
+    // collapsed. New messages start collapsed, matching the inbox default.
+    hidden: {
+      type: Boolean,
+      default: true,
+    },
     // Optional, non-reversible metadata for abuse handling.
     meta: {
       ipHash: {

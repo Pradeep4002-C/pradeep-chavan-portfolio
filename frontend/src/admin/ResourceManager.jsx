@@ -103,6 +103,7 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
 
   const dirty = useMemo(
     () => JSON.stringify(values) !== JSON.stringify(initialValues),
@@ -117,7 +118,8 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
     if (submitting) {
       return;
     }
-    if (dirty && !window.confirm('Discard your unsaved changes?')) {
+    if (dirty) {
+      setDiscardOpen(true);
       return;
     }
     onClose();
@@ -162,6 +164,23 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (discardOpen) {
+    return (
+      <ConfirmDialog
+        title="Discard unsaved changes?"
+        message={`Your ${config.singular} edits have not been saved. Leaving this form will discard them.`}
+        confirmLabel="Discard changes"
+        busyLabel="Discarding…"
+        busy={false}
+        onCancel={() => setDiscardOpen(false)}
+        onConfirm={() => {
+          setDiscardOpen(false);
+          onClose();
+        }}
+      />
+    );
   }
 
   const headingId = `resource-${config.key}-heading`;
@@ -375,10 +394,21 @@ export default function ResourceManager({ config }) {
   return (
     <div>
       <PageHeader title={config.title} description={config.description}>
-        <Button variant="outline" size="sm" onClick={reload} disabled={status === 'loading'}>
-          Refresh
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={reload}
+          disabled={status === 'loading'}
+          aria-busy={status === 'loading'}
+        >
+          {status === 'loading' ? 'Refreshing…' : 'Refresh'}
         </Button>
-        <Button variant="solid" size="sm" onClick={() => setDialog({ mode: 'create' })}>
+        <Button
+          variant="solid"
+          size="sm"
+          onClick={() => setDialog({ mode: 'create' })}
+          disabled={Boolean(busyId) || Boolean(movingId)}
+        >
           {config.addLabel}
         </Button>
       </PageHeader>
@@ -404,7 +434,12 @@ export default function ResourceManager({ config }) {
           title={config.emptyTitle}
           message={config.emptyMessage}
           action={
-            <Button variant="solid" size="sm" onClick={() => setDialog({ mode: 'create' })}>
+            <Button
+              variant="solid"
+              size="sm"
+              onClick={() => setDialog({ mode: 'create' })}
+              disabled={Boolean(busyId) || Boolean(movingId)}
+            >
               {config.addLabel}
             </Button>
           }
@@ -448,14 +483,19 @@ export default function ResourceManager({ config }) {
                   >
                     Move down
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => setDialog({ mode: 'edit', item })}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDialog({ mode: 'edit', item })}
+                    disabled={Boolean(busyId) || Boolean(movingId)}
+                  >
                     Edit
                   </Button>
                   <button
                     type="button"
                     className={dangerButtonClass}
                     onClick={() => setDeleteTarget(item)}
-                    disabled={busyId === item.id}
+                    disabled={Boolean(busyId) || Boolean(movingId)}
                   >
                     Delete
                   </button>

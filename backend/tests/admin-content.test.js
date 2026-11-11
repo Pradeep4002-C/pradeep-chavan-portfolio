@@ -466,6 +466,55 @@ test('marks a message read and unread and persists the change', async (t) => {
   assert.equal((await ContactMessage.findById(stored._id).lean()).read, false);
 });
 
+test('toggles message visibility independently of the read state', async (t) => {
+  const server = await startServer();
+  t.after(server.close);
+  const cookie = await loginAsAdmin(server.base);
+
+  const stored = await ContactMessage.create({
+    name: 'Visitor',
+    email: 'visitor@example.com',
+    message: 'Please show me.',
+  });
+  assert.equal(stored.hidden, true);
+
+  const visible = await request(server.base, `${MESSAGES_PATH}/${stored._id}`, {
+    method: 'PATCH',
+    body: { hidden: false },
+    cookie,
+  });
+  assert.equal(visible.response.status, 200);
+  assert.equal(visible.json.data.message.hidden, false);
+  assert.equal(visible.json.data.message.read, false);
+  assert.equal((await ContactMessage.findById(stored._id).lean()).hidden, false);
+
+  const read = await request(server.base, `${MESSAGES_PATH}/${stored._id}`, {
+    method: 'PATCH',
+    body: { read: true },
+    cookie,
+  });
+  assert.equal(read.response.status, 200);
+  assert.equal(read.json.data.message.read, true);
+  assert.equal(read.json.data.message.hidden, false);
+
+  const hidden = await request(server.base, `${MESSAGES_PATH}/${stored._id}`, {
+    method: 'PATCH',
+    body: { hidden: true },
+    cookie,
+  });
+  assert.equal(hidden.response.status, 200);
+  assert.equal(hidden.json.data.message.hidden, true);
+  assert.equal(hidden.json.data.message.read, true);
+  assert.equal((await ContactMessage.findById(stored._id).lean()).hidden, true);
+
+  const listed = await request(server.base, `${MESSAGES_PATH}?read=all&page=1&limit=20`, {
+    cookie,
+  });
+  assert.equal(listed.response.status, 200);
+  assert.equal(listed.json.data.messages[0].hidden, true);
+  assert.equal(listed.json.data.messages[0].read, true);
+});
+
 test('rejects unexpected or invalid message update bodies', async (t) => {
   const server = await startServer();
   t.after(server.close);
@@ -493,6 +542,26 @@ test('rejects unexpected or invalid message update bodies', async (t) => {
   });
   assert.equal(wrongType.response.status, 400);
   assert.ok(wrongType.json.error.fields.read);
+
+  const wrongHidden = await request(server.base, `${MESSAGES_PATH}/${stored._id}`, {
+    method: 'PATCH',
+    body: { hidden: 'yes' },
+    cookie,
+  });
+  assert.equal(wrongHidden.response.status, 400);
+  assert.ok(wrongHidden.json.error.fields.hidden);
+
+  const empty = await request(server.base, `${MESSAGES_PATH}/${stored._id}`, {
+    method: 'PATCH',
+    body: {},
+    cookie,
+  });
+  assert.equal(empty.response.status, 400);
+  assert.ok(empty.json.error.fields.form);
+
+  const persisted = await ContactMessage.findById(stored._id).lean();
+  assert.equal(persisted.read, false);
+  assert.equal(persisted.hidden, true);
 });
 
 test('deletes messages and rejects missing ids with 404 and malformed ids with 400', async (t) => {

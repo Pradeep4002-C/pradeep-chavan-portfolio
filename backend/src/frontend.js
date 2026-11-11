@@ -61,7 +61,7 @@ export function createFrontendRouter({ distDir = FRONTEND_DIST_DIR } = {}) {
     }),
   );
 
-  function sendIndex(req, res, next, status = 200) {
+  function sendIndex(req, res, next, status = 200, { noindex = false } = {}) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       next();
       return;
@@ -83,6 +83,12 @@ export function createFrontendRouter({ distDir = FRONTEND_DIST_DIR } = {}) {
       // Revalidate on every navigation so a new deploy is picked up while the
       // ETag still allows a cheap 304 response.
       res.setHeader('Cache-Control', REVALIDATE_CACHE);
+
+      // The administrator application is private tooling, so keep every admin
+      // URL out of search indexes even though it returns a normal 200 page.
+      if (noindex) {
+        res.setHeader('X-Robots-Tag', 'noindex');
+      }
     }
 
     res.status(status);
@@ -94,7 +100,9 @@ export function createFrontendRouter({ distDir = FRONTEND_DIST_DIR } = {}) {
   }
 
   router.get('/', (req, res, next) => sendIndex(req, res, next, 200));
-  router.get(/^\/admin(?:\/.*)?$/, (req, res, next) => sendIndex(req, res, next, 200));
+  router.get(/^\/admin(?:\/.*)?$/, (req, res, next) =>
+    sendIndex(req, res, next, 200, { noindex: true }),
+  );
 
   // Public catch-all. It only claims GET/HEAD HTML navigations; everything
   // else falls through so the final JSON notFound middleware can answer it.

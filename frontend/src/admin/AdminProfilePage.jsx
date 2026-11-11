@@ -157,6 +157,7 @@ export default function AdminProfilePage() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [reloadDialogOpen, setReloadDialogOpen] = useState(false);
 
   const dirty = useMemo(
     () => isDraftDirty(values, paragraphs, snapshot),
@@ -222,9 +223,16 @@ export default function AdminProfilePage() {
   }, [load]);
 
   function reload() {
-    if (dirty && !window.confirm(UNSAVED_PROFILE_MESSAGE)) {
+    if (dirty) {
+      setReloadDialogOpen(true);
       return;
     }
+    setStatus('loading');
+    load();
+  }
+
+  function confirmReload() {
+    setReloadDialogOpen(false);
     setStatus('loading');
     load();
   }
@@ -475,6 +483,18 @@ export default function AdminProfilePage() {
           </Button>
         </div>
       </form>
+
+      {reloadDialogOpen ? (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          message={UNSAVED_PROFILE_MESSAGE}
+          confirmLabel="Discard changes"
+          busyLabel="Discarding…"
+          busy={false}
+          onCancel={() => setReloadDialogOpen(false)}
+          onConfirm={confirmReload}
+        />
+      ) : null}
 
       {blocker.state === 'blocked' ? (
         <ConfirmDialog

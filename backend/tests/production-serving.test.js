@@ -92,6 +92,11 @@ test('serves the built index.html at / with a revalidating cache policy', async 
   assert.equal(response.status, 200);
   assert.match(contentType, /^text\/html/);
   assert.equal(response.headers.get('cache-control'), REVALIDATE);
+  assert.equal(
+    response.headers.get('x-robots-tag'),
+    null,
+    'the public portfolio must stay indexable',
+  );
   assert.ok(response.headers.get('etag'), 'expected an ETag for cheap revalidation');
   assert.ok(text.includes(INDEX_MARKER));
 });
@@ -117,6 +122,11 @@ test('serves index.html for direct navigations to every admin route', async () =
     assert.equal(response.status, 200, `${route} should return 200`);
     assert.match(contentType, /^text\/html/, `${route} should be HTML`);
     assert.equal(response.headers.get('cache-control'), REVALIDATE);
+    assert.equal(
+      response.headers.get('x-robots-tag'),
+      'noindex',
+      `${route} should be excluded from search indexes`,
+    );
     assert.ok(text.includes(INDEX_MARKER), `${route} should return the SPA entry`);
   }
 });

@@ -159,10 +159,16 @@ export default function AdminProjectsPage() {
         title="Projects"
         description="Create, edit, publish, and delete the projects stored in MongoDB."
       >
-        <Button variant="outline" size="sm" onClick={reload} disabled={status === 'loading'}>
-          Refresh
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={reload}
+          disabled={status === 'loading'}
+          aria-busy={status === 'loading'}
+        >
+          {status === 'loading' ? 'Refreshing…' : 'Refresh'}
         </Button>
-        <Button variant="solid" size="sm" onClick={openCreate}>
+        <Button variant="solid" size="sm" onClick={openCreate} disabled={Boolean(busyId)}>
           Add project
         </Button>
       </PageHeader>
@@ -188,7 +194,7 @@ export default function AdminProjectsPage() {
           title="No projects yet"
           message="Add your first project to make it available to the portfolio’s work section."
           action={
-            <Button variant="solid" size="sm" onClick={openCreate}>
+            <Button variant="solid" size="sm" onClick={openCreate} disabled={Boolean(busyId)}>
               Add project
             </Button>
           }
@@ -241,14 +247,19 @@ export default function AdminProjectsPage() {
                     <td className="px-4 py-3.5 text-muted">{project.order}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex flex-wrap justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(project)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEdit(project)}
+                          disabled={Boolean(busyId)}
+                        >
                           Edit
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleTogglePublished(project)}
-                          disabled={busyId === project.id}
+                          disabled={Boolean(busyId)}
                         >
                           {project.published ? 'Unpublish' : 'Publish'}
                         </Button>
@@ -256,7 +267,7 @@ export default function AdminProjectsPage() {
                           type="button"
                           className={dangerButtonClass}
                           onClick={() => setDeleteTarget(project)}
-                          disabled={busyId === project.id}
+                          disabled={Boolean(busyId)}
                         >
                           Delete
                         </button>
@@ -289,14 +300,19 @@ export default function AdminProjectsPage() {
                   {project.featured ? 'Featured' : 'Not featured'} · Order {project.order}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => openEdit(project)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEdit(project)}
+                    disabled={Boolean(busyId)}
+                  >
                     Edit
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleTogglePublished(project)}
-                    disabled={busyId === project.id}
+                    disabled={Boolean(busyId)}
                   >
                     {project.published ? 'Unpublish' : 'Publish'}
                   </Button>
@@ -304,7 +320,7 @@ export default function AdminProjectsPage() {
                     type="button"
                     className={dangerButtonClass}
                     onClick={() => setDeleteTarget(project)}
-                    disabled={busyId === project.id}
+                    disabled={Boolean(busyId)}
                   >
                     Delete
                   </button>
