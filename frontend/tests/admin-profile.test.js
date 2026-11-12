@@ -333,10 +333,14 @@ test('tracks field edits, warns before unload, and blocks navigation until disca
 
   const allowed = await navigate(router, '/admin');
 
-  assert.ok(findButton('Discard changes'), 'a second navigation must block again');
+  const blockerDialog = document.querySelector('[role="alertdialog"]');
+  assert.ok(
+    findButton('Discard changes', blockerDialog),
+    'a second navigation must block again',
+  );
 
   await act(async () => {
-    findButton('Discard changes').click();
+    findButton('Discard changes', blockerDialog).click();
   });
   await flush();
   await allowed;
@@ -397,6 +401,192 @@ test('marks a biography paragraph dirty and clears the snapshot after a successf
     'saved edits must not trigger the navigation blocker',
   );
   assert.equal(router.state.location.pathname, '/admin');
+});
+
+test('Remove paragraph asks for confirmation and leaves the draft untouched on cancel', async (t) => {
+  const api = mockProfileApi();
+  const { unmount } = await mountProfile();
+  t.after(unmount);
+
+  const biographyFields = () =>
+    Array.from(document.querySelectorAll('textarea[id^="profile-bio-"]'));
+
+  assert.equal(biographyFields().length, 2);
+  assert.equal(biographyFields()[1].value, 'Second paragraph.');
+
+  await act(async () => {
+    findButton('Remove paragraph 2').click();
+  });
+  await flush();
+
+  let dialog = document.querySelector('[role="alertdialog"]');
+  assert.ok(dialog, 'Remove paragraph must open the custom confirmation');
+  assert.match(dialog.textContent, /Remove this paragraph\?/);
+  assert.ok(findButton('Cancel', dialog));
+  assert.ok(findButton('Remove paragraph', dialog));
+  assert.equal(
+    biographyFields().length,
+    2,
+    'opening the confirmation must not delete the paragraph yet',
+  );
+
+  await act(async () => {
+    findButton('Cancel', dialog).click();
+  });
+  await flush();
+
+  dialog = document.querySelector('[role="alertdialog"]');
+  assert.equal(dialog, null);
+  assert.equal(biographyFields().length, 2, 'cancelling must preserve the paragraph');
+  assert.equal(biographyFields()[1].value, 'Second paragraph.');
+  assert.equal(api.putRequests().length, 0);
+
+  await act(async () => {
+    findButton('Remove paragraph 2').click();
+  });
+  await flush();
+
+  dialog = document.querySelector('[role="alertdialog"]');
+  assert.ok(dialog, 'the confirmation must appear again after cancelling');
+
+  await act(async () => {
+    findButton('Remove paragraph', dialog).click();
+  });
+  await flush();
+
+  assert.equal(document.querySelector('[role="alertdialog"]'), null);
+  assert.equal(biographyFields().length, 1);
+  assert.equal(biographyFields()[0].value, 'First paragraph.');
+  assert.equal(api.putRequests().length, 0, 'removal is a draft edit until Save profile');
+});
+
+test('Discard changes stays disabled until dirty and restores the saved snapshot', async (t) => {
+  const api = mockProfileApi();
+  const { unmount } = await mountProfile();
+  t.after(unmount);
+
+  const discardButton = findButton('Discard changes');
+  assert.ok(discardButton, 'the form must expose an explicit Discard changes action');
+  assert.equal(discardButton.disabled, true, 'an untouched form cannot discard anything');
+
+  await editField('profile-name', 'Changed Name');
+  await editFirstBio('Changed biography.');
+
+  assert.equal(discardButton.disabled, false, 'a dirty form must enable Discard changes');
+
+  await act(async () => {
+    discardButton.click();
+  });
+  await flush();
+
+  let dialog = document.querySelector('[role="alertdialog"]');
+  assert.ok(dialog, 'Discard changes must open the custom confirmation');
+  assert.match(dialog.textContent, /Discard unsaved changes\?/);
+  assert.ok(dialog.textContent.includes(EXACT_UNSAVED_MESSAGE));
+
+  await act(async () => {
+    findButton('Cancel', dialog).click();
+  });
+  await flush();
+
+  assert.equal(document.querySelector('[role="alertdialog"]'), null);
+  assert.equal(document.getElementById('profile-name').value, 'Changed Name');
+  assert.equal(
+    document.querySelector('textarea[id^="profile-bio-"]').value,
+    'Changed biography.',
+    'cancelling must keep the draft',
+  );
+
+  await act(async () => {
+    discardButton.click();
+  });
+  await flush();
+
+  dialog = document.querySelector('[role="alertdialog"]');
+  assert.ok(dialog, 'Discard changes must ask again while the draft is dirty');
+
+  await act(async () => {
+    findButton('Discard changes', dialog).click();
+  });
+  await flush();
+
+  assert.equal(document.querySelector('[role="alertdialog"]'), null);
+  assert.equal(document.getElementById('profile-name').value, 'Pradeep Chavan');
+  assert.equal(
+    document.querySelector('textarea[id^="profile-bio-"]').value,
+    'First paragraph.',
+    'discarding must restore the last saved biography',
+  );
+  assert.equal(discardButton.disabled, true);
+  assert.equal(unloadWasPrevented(), false);
+  assert.equal(api.putRequests().length, 0, 'discarding must not write to the server');
+});
+
+test('saving fewer paragraphs than the loaded profile asks before removing public content', async (t) => {
+  const api = mockProfileApi();
+  const { unmount } = await mountProfile();
+  t.after(unmount);
+
+  await act(async () => {
+    findButton('Remove paragraph 2').click();
+  });
+  await flush();
+
+  await act(async () => {
+    findButton('Remove paragraph', document.querySelector('[role="alertdialog"]')).click();
+  });
+  await flush();
+
+  assert.equal(
+    document.querySelectorAll('textarea[id^="profile-bio-"]').length,
+    1,
+    'the draft must be reduced before saving',
+  );
+
+  await act(async () => {
+    findButton('Save profile').click();
+  });
+  await flush();
+
+  let dialog = document.querySelector('[role="alertdialog"]');
+  assert.ok(dialog, 'a save that reduces the paragraph count must be confirmed');
+  assert.match(dialog.textContent, /Save with fewer paragraphs\?/);
+  assert.match(dialog.textContent, /from 2 paragraphs to 1/);
+  assert.equal(api.putRequests().length, 0, 'the save must wait for confirmation');
+
+  await act(async () => {
+    findButton('Cancel', dialog).click();
+  });
+  await flush();
+
+  dialog = document.querySelector('[role="alertdialog"]');
+  assert.equal(dialog, null);
+  assert.equal(api.putRequests().length, 0);
+  assert.equal(
+    document.querySelectorAll('textarea[id^="profile-bio-"]').length,
+    1,
+    'cancelling must keep the reduced draft',
+  );
+
+  await act(async () => {
+    findButton('Save profile').click();
+  });
+  await flush();
+
+  dialog = document.querySelector('[role="alertdialog"]');
+  assert.ok(dialog, 'saving again must ask again');
+
+  await act(async () => {
+    findButton('Save profile', dialog).click();
+  });
+  await flush();
+  await flush();
+
+  const puts = api.putRequests();
+  assert.equal(puts.length, 1);
+  assert.deepEqual(JSON.parse(puts[0].body).bio, ['First paragraph.']);
+  assert.match(document.body.textContent, /Your profile was saved\./);
+  assert.equal(unloadWasPrevented(), false);
 });
 
 test('Reload uses the custom discard dialog and only refetches when accepted', async (t) => {
@@ -474,4 +664,26 @@ test('Reload uses the custom discard dialog and only refetches when accepted', a
     false,
     'reloading the stored profile must clear the dirty state',
   );
+});
+
+test('an invalid profile submit focuses the first invalid field and exposes its message', async (t) => {
+  mockProfileApi();
+  const { unmount } = await mountProfile();
+  t.after(unmount);
+
+  await editField('profile-email', 'not-an-email');
+
+  await act(async () => {
+    findButton('Save profile').click();
+  });
+  await flush();
+
+  const email = document.getElementById('profile-email');
+  assert.equal(document.activeElement, email, 'focus must move to the first invalid field');
+  assert.equal(email.getAttribute('aria-invalid'), 'true');
+  assert.equal(
+    document.getElementById('profile-email-error').textContent,
+    'Enter a valid email address.',
+  );
+  assert.match(document.body.textContent, /Please fix the highlighted fields/);
 });

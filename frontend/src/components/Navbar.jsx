@@ -6,6 +6,8 @@ import Brand from './Brand.jsx';
 import Button from './Button.jsx';
 import Container from './Container.jsx';
 import DownloadIcon from './DownloadIcon.jsx';
+import MenuIcon from './MenuIcon.jsx';
+import { lockBodyScroll } from './bodyScrollLock.js';
 
 const SECTION_LABELS = {
   work: 'Work',
@@ -65,6 +67,9 @@ export default function Navbar() {
     typeof window === 'undefined' ? '' : window.location.hash.slice(1),
   );
   const menuButtonRef = useRef(null);
+  // A section tapped from the mobile drawer is scrolled only after the drawer
+  // closes and the body scroll lock is released.
+  const pendingSectionRef = useRef(null);
   const resumeHref = profile.resume
     ? `${import.meta.env.BASE_URL}${profile.resume}`
     : null;
@@ -167,6 +172,14 @@ export default function Navbar() {
     return () => window.cancelAnimationFrame(frame);
   }, [sectionKey, status]);
 
+  // Lock background scrolling while the drawer covers the viewport. The shared
+  // reference-counted lock also keeps a modal dialog open above this drawer
+  // from restoring body scrolling too early.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    return lockBodyScroll();
+  }, [menuOpen]);
+
   // Close the mobile menu with Escape or when the viewport returns to desktop.
   useEffect(() => {
     function handleKeyDown(event) {
@@ -193,76 +206,122 @@ export default function Navbar() {
     };
   }, [menuOpen]);
 
+  /* Mobile drawer links close the drawer themselves instead of relying on the
+     browser's hash jump: while the body is locked the native jump can be
+     swallowed, and the drawer's closing transition can leave the heading under
+     the sticky header. The pending id is consumed after menuOpen becomes false,
+     so the body is unlocked and the final layout committed before scrolling.
+     The global html scroll-padding-top keeps the heading clear of the header. */
+  useEffect(() => {
+    if (menuOpen) return undefined;
+
+    const id = pendingSectionRef.current;
+    if (!id) return undefined;
+    pendingSectionRef.current = null;
+
+    const frame = window.requestAnimationFrame(() => {
+      if (window.location.hash !== `#${id}`) {
+        window.history.pushState(null, '', `#${id}`);
+      }
+      setActiveId(id);
+
+      const target = document.getElementById(id);
+      if (!target) return;
+      // Sections already carry tabIndex="-1", so moving focus there keeps
+      // keyboard and screen-reader users at the destination instead of leaving
+      // focus on the link that just disappeared with the drawer.
+      if (typeof target.focus === 'function') target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [menuOpen]);
+
+  function handleSectionNavigate(event, id) {
+    // Desktop links and a closed drawer keep the browser's native anchor jump.
+    if (!menuOpen) return;
+
+    event.preventDefault();
+    pendingSectionRef.current = id;
+    setMenuOpen(false);
+  }
+
+  function closeMenu() {
+    setMenuOpen(false);
+    menuButtonRef.current?.focus();
+  }
+
   return (
-    <header className="sticky top-0 z-50 border-b border-ink/10 bg-paper/90 backdrop-blur-md">
-      <Container
-        as="nav"
-        aria-label="Main navigation"
-        className="flex min-h-[68px] items-center justify-between gap-6 md:min-h-[78px]"
-      >
-        <Brand onNavigate={() => setMenuOpen(false)} />
-
-        <button
-          ref={menuButtonRef}
-          type="button"
-          className="grid size-12 cursor-pointer place-items-center gap-1.5 rounded-full border border-line-strong outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui hover:border-ink md:hidden"
-          aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-          aria-expanded={menuOpen}
-          aria-controls="primary-navigation"
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          <span
-            className={`block h-[1.5px] w-[15px] bg-ink transition-transform ${
-              menuOpen ? 'translate-y-[3.75px] rotate-45' : ''
-            }`}
-          />
-          <span
-            className={`block h-[1.5px] w-[15px] bg-ink transition-transform ${
-              menuOpen ? '-translate-y-[3.75px] -rotate-45' : ''
-            }`}
-          />
-        </button>
-
+    <>
+      {menuOpen ? (
         <div
-          id="primary-navigation"
-          className={`absolute inset-x-0 top-full flex-col border-b border-line bg-paper px-5 pb-6 pt-3 shadow-lg shadow-ink/5 md:static md:flex md:flex-row md:items-center md:gap-8 md:border-0 md:bg-transparent md:p-0 md:shadow-none ${
-            menuOpen ? 'flex' : 'hidden'
-          }`}
+          aria-hidden="true"
+          data-mobile-menu-backdrop=""
+          className="fixed inset-0 z-40 bg-ink/30 backdrop-blur-[1px] md:hidden"
+          onClick={closeMenu}
+        />
+      ) : null}
+      <header className="sticky top-0 z-50 border-b border-ink/10 bg-paper/90 backdrop-blur-md">
+        <Container
+          as="nav"
+          aria-label="Main navigation"
+          className="flex min-h-[68px] items-center justify-between gap-6 md:min-h-[78px]"
         >
-          {navSections.map((section) => {
-            const isActive = activeId === section.id;
-            return (
-              <a
-                key={section.id}
-                className={linkClass(isActive)}
-                href={`#${section.id}`}
-                aria-current={isActive ? 'location' : undefined}
-                onClick={() => setMenuOpen(false)}
+          <Brand onNavigate={(event) => handleSectionNavigate(event, 'home')} />
+
+          <button
+            ref={menuButtonRef}
+            type="button"
+            className="grid size-12 cursor-pointer place-items-center rounded-full border border-line-strong outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui hover:border-ink md:hidden"
+            aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={menuOpen}
+            aria-controls="primary-navigation"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <MenuIcon open={menuOpen} />
+          </button>
+
+          <div
+            id="primary-navigation"
+            className={`absolute inset-x-0 top-full flex-col overflow-y-auto overscroll-contain border-b border-line bg-paper px-5 pb-6 pt-3 shadow-lg shadow-ink/5 max-h-[calc(100dvh-4.5rem)] md:static md:flex md:max-h-none md:flex-row md:items-center md:gap-8 md:overflow-y-visible md:border-0 md:bg-transparent md:p-0 md:shadow-none ${
+              menuOpen ? 'flex' : 'hidden'
+            }`}
+          >
+            {navSections.map((section) => {
+              const isActive = activeId === section.id;
+              return (
+                <a
+                  key={section.id}
+                  className={linkClass(isActive)}
+                  href={`#${section.id}`}
+                  aria-current={isActive ? 'location' : undefined}
+                  onClick={(event) => handleSectionNavigate(event, section.id)}
+                >
+                  {section.label}
+                </a>
+              );
+            })}
+            {resumeHref ? (
+              <Button
+                className="mt-3.5 self-start md:mt-0"
+                href={resumeHref}
+                size="sm"
+                variant="outline"
+                download="Pradeep_Chavan_Resume.pdf"
+                onClick={() => {
+                  setMenuOpen(false);
+                  // The panel is hidden as the download starts, so keep focus in the
+                  // header instead of dropping it on <body>. On desktop the toggle is
+                  // display:none and this is skipped.
+                  if (menuOpen) menuButtonRef.current?.focus();
+                }}
               >
-                {section.label}
-              </a>
-            );
-          })}
-          {resumeHref ? (
-            <Button
-              className="mt-3.5 self-start md:mt-0"
-              href={resumeHref}
-              size="sm"
-              variant="outline"
-              download="Pradeep_Chavan_Resume.pdf"
-              onClick={() => {
-                setMenuOpen(false);
-                // The panel is hidden as the download starts, so keep focus in the
-                // header instead of dropping it on <body>. On desktop the toggle is
-                // display:none and this is skipped.
-                if (menuOpen) menuButtonRef.current?.focus();
-              }}
-            >
-              Download resume <DownloadIcon />
-            </Button>
-          ) : null}
-        </div>
-      </Container>
-    </header>
+                Download resume <DownloadIcon />
+              </Button>
+            ) : null}
+          </div>
+        </Container>
+      </header>
+    </>
   );
 }

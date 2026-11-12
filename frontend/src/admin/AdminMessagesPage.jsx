@@ -35,7 +35,7 @@ function formatDate(value) {
 function ReadBadge({ read }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+      className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
         read ? 'bg-sunken text-muted' : 'bg-accent-soft text-accent-strong'
       }`}
     >
@@ -231,7 +231,7 @@ export default function AdminMessagesPage() {
             type="button"
             aria-pressed={filter === option.value}
             onClick={() => changeFilter(option.value)}
-            className={`inline-flex min-h-[38px] items-center rounded-full border px-4 text-sm font-semibold transition-ui ${
+            className={`inline-flex min-h-[44px] items-center rounded-full border px-4 text-sm font-semibold transition-ui ${
               filter === option.value
                 ? 'border-accent bg-accent-soft text-accent-strong'
                 : 'border-line-strong text-muted hover:border-accent hover:text-accent'
@@ -275,16 +275,16 @@ export default function AdminMessagesPage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-base font-semibold text-ink">{message.name}</h2>
+                        <h2 className="min-w-0 text-base font-semibold text-ink [overflow-wrap:anywhere]">{message.name}</h2>
                         <ReadBadge read={message.read} />
                       </div>
                       <p className="mt-0.5 break-all text-sm text-muted">{message.email}</p>
                     </div>
-                    <p className="text-xs text-muted">{formatDate(message.createdAt)}</p>
+                    <p className="shrink-0 text-xs text-muted">{formatDate(message.createdAt)}</p>
                   </div>
 
                   {message.subject ? (
-                    <p className="mt-2 text-sm font-semibold text-ink">{message.subject}</p>
+                    <p className="mt-2 text-sm font-semibold text-ink [overflow-wrap:anywhere]">{message.subject}</p>
                   ) : null}
 
                   <AdminMessageBody id={bodyId} message={message} />
@@ -303,6 +303,7 @@ export default function AdminMessagesPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      aria-pressed={Boolean(message.read)}
                       onClick={() => handleToggleRead(message)}
                       disabled={Boolean(busyId)}
                     >

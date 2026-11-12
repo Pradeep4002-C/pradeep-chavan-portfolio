@@ -30,7 +30,10 @@ export default function InactivityWarningDialog({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-ink/55 px-4 py-8">
+    <div
+      data-dialog-layer="inactivity"
+      className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto bg-ink/55 px-4 py-8"
+    >
       <div
         ref={dialogRef}
         tabIndex={-1}
@@ -39,7 +42,7 @@ export default function InactivityWarningDialog({
         aria-labelledby="inactivity-warning-title"
         aria-describedby="inactivity-warning-description"
         aria-busy={busy}
-        className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-xl outline-none"
+        className="max-h-[calc(100dvh-4rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-6 shadow-xl outline-none"
       >
         <p className="text-kicker font-bold uppercase tracking-[0.14em] text-accent-strong">
           Session timeout

@@ -348,7 +348,9 @@ was separately verified.
   password reset, or multi-user audit trail.
 - **No image generation or upload** — the fixed SVG/CSS artwork and structured
   workflow keep the site fast and avoid untrusted media. The cost is less visual
-  variety.
+  variety. Every project artwork is inline SVG and unknown artwork types render a
+  neutral inline fallback, so there is no external `<img>` request that can fail;
+  `responsive-layout.test.js` enforces that contract across the source tree.
 - **No AI workflow generation** — diagrams are deterministic and honest, but the
   owner must describe the real steps.
 - **Two validation layers** — some duplication, but immediate UI feedback and an

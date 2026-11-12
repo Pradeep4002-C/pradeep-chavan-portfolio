@@ -25,15 +25,15 @@ export default function Footer() {
             className="group mt-4 inline-flex min-h-[48px] min-w-[48px] max-w-full items-center gap-2 text-balance text-5xl font-bold leading-tight tracking-tight text-ink outline-none transition-ui focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 hover:text-accent md:text-7xl"
             href={contactHref}
           >
-            <span>
+            <span className="min-w-0 [overflow-wrap:anywhere]">
               Let&rsquo;s work together<span className="text-accent">.</span>
             </span>
-            <Arrow diagonal />
+            <Arrow diagonal className="shrink-0" />
           </a>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3 pt-6 sm:pt-7">
-          <p className="text-[0.78rem] text-muted">
+          <p className="min-w-0 text-[0.78rem] text-muted [overflow-wrap:anywhere]">
             &copy; {new Date().getFullYear()} {profile.name}
           </p>
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
+import { focusFirstError } from '../components/formFocus.js';
 import { ADMIN_AUTH_STATUS, useAdminAuth } from './AdminAuthContext.jsx';
 import {
   AdminBrand,
@@ -22,17 +23,27 @@ function safeDestination(from) {
   return '/admin';
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function focusLoginError(errors) {
+  focusFirstError(errors, ['email', 'password'], (key) =>
+    document.getElementById(`admin-${key}`),
+  );
+}
+
 export default function AdminLoginPage() {
   const { status, error, login, checkSession } = useAdminAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const emailRef = useRef(null);
+  const passwordRef = useRef(null);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const destination = safeDestination(location.state?.from);
 
@@ -42,6 +53,17 @@ export default function AdminLoginPage() {
     }
   }, [status]);
 
+  function clearFieldError(name) {
+    setFieldErrors((previous) => {
+      if (!previous[name]) {
+        return previous;
+      }
+      const next = { ...previous };
+      delete next[name];
+      return next;
+    });
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     if (submitting) {
@@ -49,8 +71,24 @@ export default function AdminLoginPage() {
     }
 
     const trimmedEmail = email.trim();
-    if (trimmedEmail.length === 0 || password.length === 0) {
-      setFormError('Enter your email address and password.');
+    const errors = {};
+    if (trimmedEmail.length === 0) {
+      errors.email = 'Enter your email address.';
+    } else if (!EMAIL_PATTERN.test(trimmedEmail)) {
+      errors.email = 'Enter a valid email address.';
+    }
+    if (password.length === 0) {
+      errors.password = 'Enter your password.';
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setFormError(
+        errors.email && errors.password
+          ? 'Enter your email address and password.'
+          : 'Please fix the highlighted fields and try again.',
+      );
+      focusLoginError(errors);
       return;
     }
 
@@ -97,14 +135,14 @@ export default function AdminLoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-sunken px-5 py-10">
       <div className="w-full max-w-md">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-2">
+        <div className="mb-5 flex items-center justify-between gap-2 sm:gap-3">
+          <span className="inline-flex min-w-0 items-center gap-2">
             <AdminBrand />
             <AdminPill />
           </span>
           <a
             href="/"
-            className="text-xs font-semibold text-muted underline decoration-transparent underline-offset-2 transition-ui hover:text-accent hover:decoration-current"
+            className="inline-flex min-h-[44px] shrink-0 items-center text-xs font-semibold text-muted underline decoration-transparent underline-offset-2 transition-ui hover:text-accent hover:decoration-current"
           >
             Back to site
           </a>
@@ -134,12 +172,22 @@ export default function AdminLoginPage() {
                 type="email"
                 className={inputClass}
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  clearFieldError('email');
+                }}
                 autoComplete="username"
                 autoCapitalize="none"
                 spellCheck="false"
                 required
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={fieldErrors.email ? 'admin-email-error' : undefined}
               />
+              {fieldErrors.email ? (
+                <p id="admin-email-error" className="mt-1 text-xs font-medium text-[#b3261e]">
+                  {fieldErrors.email}
+                </p>
+              ) : null}
             </div>
 
             <div>
@@ -148,25 +196,36 @@ export default function AdminLoginPage() {
               </label>
               <div className="relative">
                 <input
+                  ref={passwordRef}
                   id="admin-password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   className={`${inputClass} pr-20`}
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    clearFieldError('password');
+                  }}
                   autoComplete="current-password"
                   required
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  aria-describedby={fieldErrors.password ? 'admin-password-error' : undefined}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((shown) => !shown)}
                   aria-pressed={showPassword}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 my-1 mr-1 rounded-lg px-3 text-xs font-semibold text-muted transition-ui hover:text-accent"
+                  className="absolute inset-y-0 right-0 mr-1 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg px-3 text-xs font-semibold text-muted transition-ui hover:text-accent"
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
+              {fieldErrors.password ? (
+                <p id="admin-password-error" className="mt-1 text-xs font-medium text-[#b3261e]">
+                  {fieldErrors.password}
+                </p>
+              ) : null}
             </div>
 
             <Button type="submit" variant="solid" disabled={submitting} className="w-full">

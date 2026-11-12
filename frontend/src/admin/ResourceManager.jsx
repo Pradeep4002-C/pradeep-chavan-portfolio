@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useBlocker } from 'react-router-dom';
 import Button from '../components/Button.jsx';
+import { focusFirstError } from '../components/formFocus.js';
 import { useAdminAuth } from './AdminAuthContext.jsx';
 import {
   AdminErrorState,
@@ -110,6 +112,30 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
     [values, initialValues],
   );
 
+  const blocker = useBlocker(() => dirty && !submitting);
+
+  useEffect(() => {
+    if (!dirty || submitting) {
+      return undefined;
+    }
+
+    function handleBeforeUnload(event) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [dirty, submitting]);
+
+  function focusErrorFields(errors) {
+    focusFirstError(
+      errors,
+      config.fields.map((field) => field.name),
+      (name) => document.getElementById(`resource-${config.key}-${name}`),
+    );
+  }
+
   function update(name, value) {
     setValues((previous) => ({ ...previous, [name]: value }));
   }
@@ -135,6 +161,7 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
     setFieldErrors(clientErrors);
     if (Object.keys(clientErrors).length > 0) {
       setFormError('Please fix the highlighted fields and try again.');
+      focusErrorFields(clientErrors);
       return;
     }
 
@@ -157,6 +184,7 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
       const { mapped, formMessage } = mapServerFields(error?.fields);
       if (Object.keys(mapped).length > 0) {
         setFieldErrors(mapped);
+        focusErrorFields(mapped);
       }
       setFormError(
         formMessage ?? describeError(error, `We could not save the ${config.singular}. Please try again.`),
@@ -166,94 +194,106 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
     }
   }
 
-  if (discardOpen) {
-    return (
-      <ConfirmDialog
-        title="Discard unsaved changes?"
-        message={`Your ${config.singular} edits have not been saved. Leaving this form will discard them.`}
-        confirmLabel="Discard changes"
-        busyLabel="Discarding…"
-        busy={false}
-        onCancel={() => setDiscardOpen(false)}
-        onConfirm={() => {
-          setDiscardOpen(false);
-          onClose();
-        }}
-      />
-    );
-  }
-
   const headingId = `resource-${config.key}-heading`;
 
   return (
-    <Dialog labelledBy={headingId} busy={submitting} onClose={requestClose} className="max-w-2xl">
-      <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
-        <div>
-          <h2 id={headingId} className="text-lg font-semibold tracking-[-0.02em] text-ink">
-            {isEdit ? `Edit ${config.singular}` : config.addLabel}
-          </h2>
-          <p className="mt-1 text-xs text-muted">
-            Changes are saved to MongoDB and appear on the public site after it reloads.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={requestClose}
-          disabled={submitting}
-          className="rounded-lg px-2 py-1 text-sm font-semibold text-muted transition-ui hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Close
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} noValidate className="px-6 py-5">
-        {formError ? (
-          <div className="mb-5">
-            <Notice tone="error">{formError}</Notice>
+    <>
+      <Dialog labelledBy={headingId} busy={submitting} onClose={requestClose} className="max-w-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
+          <div className="min-w-0">
+            <h2 id={headingId} className="text-lg font-semibold tracking-[-0.02em] text-ink [overflow-wrap:anywhere]">
+              {isEdit ? `Edit ${config.singular}` : config.addLabel}
+            </h2>
+            <p className="mt-1 text-xs text-muted">
+              Changes are saved to MongoDB and appear on the public site after it reloads.
+            </p>
           </div>
-        ) : null}
+          <button
+            type="button"
+            onClick={requestClose}
+            disabled={submitting}
+            className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg px-2 text-sm font-semibold text-muted transition-ui hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Close
+          </button>
+        </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {config.fields.map((field, index) => (
-            <div key={field.name} className={field.span === 2 ? 'sm:col-span-2' : undefined}>
-              <label className={labelClass} htmlFor={`resource-${config.key}-${field.name}`}>
-                {field.label}
-                {field.required ? <span className="text-[#b3261e]"> *</span> : null}
-              </label>
-              <FieldControl
-                config={config}
-                field={field}
-                value={values[field.name]}
-                error={fieldErrors[field.name]}
-                onChange={(value) => update(field.name, value)}
-              />
-              {fieldErrors[field.name] ? (
-                <p id={`resource-${config.key}-${field.name}-error`} className={fieldErrorClass}>
-                  {fieldErrors[field.name]}
-                </p>
-              ) : field.hint ? (
-                <p id={`resource-${config.key}-${field.name}-hint`} className={hintClass}>
-                  {field.hint}
-                </p>
-              ) : null}
+        <form onSubmit={handleSubmit} noValidate className="px-6 py-5">
+          {formError ? (
+            <div className="mb-5">
+              <Notice tone="error">{formError}</Notice>
             </div>
-          ))}
-        </div>
+          ) : null}
 
-        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="outline" onClick={requestClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="solid" disabled={submitting}>
-            {submitting
-              ? 'Saving…'
-              : isEdit
-                ? `Save ${config.singular}`
-                : config.addLabel}
-          </Button>
-        </div>
-      </form>
-    </Dialog>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {config.fields.map((field) => (
+              <div key={field.name} className={field.span === 2 ? 'sm:col-span-2' : undefined}>
+                <label className={labelClass} htmlFor={`resource-${config.key}-${field.name}`}>
+                  {field.label}
+                  {field.required ? <span className="text-[#b3261e]"> *</span> : null}
+                </label>
+                <FieldControl
+                  config={config}
+                  field={field}
+                  value={values[field.name]}
+                  error={fieldErrors[field.name]}
+                  onChange={(value) => update(field.name, value)}
+                />
+                {fieldErrors[field.name] ? (
+                  <p id={`resource-${config.key}-${field.name}-error`} className={fieldErrorClass}>
+                    {fieldErrors[field.name]}
+                  </p>
+                ) : field.hint ? (
+                  <p id={`resource-${config.key}-${field.name}-hint`} className={hintClass}>
+                    {field.hint}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={requestClose} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="solid" disabled={submitting}>
+              {submitting
+                ? 'Saving…'
+                : isEdit
+                  ? `Save ${config.singular}`
+                  : config.addLabel}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {discardOpen ? (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          message={`Your ${config.singular} edits have not been saved. Leaving this form will discard them.`}
+          confirmLabel="Discard changes"
+          busyLabel="Discarding…"
+          busy={false}
+          onCancel={() => setDiscardOpen(false)}
+          onConfirm={() => {
+            setDiscardOpen(false);
+            onClose();
+          }}
+        />
+      ) : null}
+
+      {blocker.state === 'blocked' ? (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          message={`Your ${config.singular} edits have not been saved. Leaving this page will discard them.`}
+          confirmLabel="Discard changes"
+          busyLabel="Discarding…"
+          busy={false}
+          onCancel={() => blocker.reset?.()}
+          onConfirm={() => blocker.proceed?.()}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -456,12 +496,12 @@ export default function ResourceManager({ config }) {
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-semibold text-ink">{label}</h2>
-                    <span className="rounded-full bg-sunken px-2.5 py-0.5 text-xs font-semibold text-muted">
+                    <h2 className="min-w-0 text-base font-semibold text-ink [overflow-wrap:anywhere]">{label}</h2>
+                    <span className="shrink-0 rounded-full bg-sunken px-2.5 py-0.5 text-xs font-semibold text-muted">
                       Order {item.order}
                     </span>
                   </div>
-                  {secondary ? <p className="mt-1.5 text-sm text-muted">{secondary}</p> : null}
+                  {secondary ? <p className="mt-1.5 text-sm text-muted [overflow-wrap:anywhere]">{secondary}</p> : null}
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2 sm:mt-0 sm:shrink-0 sm:justify-end">

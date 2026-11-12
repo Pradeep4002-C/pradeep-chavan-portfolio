@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBlocker } from 'react-router-dom';
 import Button from '../components/Button.jsx';
+import { focusFirstError } from '../components/formFocus.js';
 import { fetchProfile, updateProfile } from './adminApi.js';
 import { useAdminAuth } from './AdminAuthContext.jsx';
 import {
@@ -53,6 +54,19 @@ const TEXT_FIELDS = [
   { name: 'linkedin', label: 'LinkedIn URL', maxLength: 300, url: true, span: 2 },
   { name: 'leetcode', label: 'LeetCode URL', maxLength: 300, url: true, span: 2 },
 ];
+
+const PROFILE_ERROR_ORDER = [...TEXT_FIELDS.map((field) => field.name), 'intro', 'bio'];
+
+function profileErrorTarget(key) {
+  if (key === 'bio') {
+    return document.querySelector('textarea[id^="profile-bio-"]');
+  }
+  return document.getElementById(`profile-${key}`);
+}
+
+function focusProfileErrors(errors) {
+  focusFirstError(errors, PROFILE_ERROR_ORDER, profileErrorTarget);
+}
 
 function isHttpUrl(value) {
   try {
@@ -158,10 +172,24 @@ export default function AdminProfilePage() {
   const [formError, setFormError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [reloadDialogOpen, setReloadDialogOpen] = useState(false);
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [paragraphToRemove, setParagraphToRemove] = useState(null);
 
   const dirty = useMemo(
     () => isDraftDirty(values, paragraphs, snapshot),
     [values, paragraphs, snapshot],
+  );
+
+  // The baseline count is the number of non-empty paragraphs in the last saved
+  // profile. A save that reduces it removes public content, so it is confirmed.
+  const savedParagraphCount = useMemo(
+    () => snapshot.paragraphs.filter((text) => text.trim().length > 0).length,
+    [snapshot],
+  );
+  const draftParagraphCount = useMemo(
+    () => paragraphs.filter((paragraph) => paragraph.text.trim().length > 0).length,
+    [paragraphs],
   );
 
   const blocker = useBlocker(() => dirty && !submitting);
@@ -253,27 +281,44 @@ export default function AdminProfilePage() {
     setParagraphs((previous) => previous.map((p) => (p.id === id ? { ...p, text } : p)));
   }
 
-  function removeParagraph(id) {
-    setParagraphs((previous) => previous.filter((p) => p.id !== id));
+  function trimmedParagraphs() {
+    return paragraphs
+      .map((paragraph) => paragraph.text.trim())
+      .filter((text) => text.length > 0);
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-    if (submitting) {
-      return;
-    }
+  function requestRemoveParagraph(id) {
+    setParagraphToRemove(id);
+  }
 
-    const trimmedParagraphs = paragraphs
-      .map((p) => p.text.trim())
-      .filter((text) => text.length > 0);
+  function confirmRemoveParagraph() {
+    const id = paragraphToRemove;
+    setParagraphToRemove(null);
+    if (id === null) return;
+    setParagraphs((previous) => previous.filter((paragraph) => paragraph.id !== id));
+  }
 
-    const errors = validate(values, trimmedParagraphs);
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      setFormError('Please fix the highlighted fields and try again.');
-      return;
-    }
+  function confirmDiscardChanges() {
+    setDiscardDialogOpen(false);
 
+    // The snapshot stores paragraph text rather than editor ids, so rebuilding
+    // the rows here gives each restored paragraph a fresh, stable id.
+    const restoredParagraphs =
+      snapshot.paragraphs.length > 0
+        ? snapshot.paragraphs.map((text) => ({
+            id: nextParagraphId.current++,
+            text,
+          }))
+        : [{ id: nextParagraphId.current++, text: '' }];
+
+    setValues({ ...snapshot.values });
+    setParagraphs(restoredParagraphs);
+    setFieldErrors({});
+    setFormError(null);
+    setNotice({ tone: 'success', message: 'Unsaved changes were discarded.' });
+  }
+
+  async function saveProfile(trimmed) {
     setSubmitting(true);
     setFormError(null);
     setNotice(null);
@@ -283,7 +328,7 @@ export default function AdminProfilePage() {
         email: values.email.trim(),
         headline: values.headline.trim(),
         intro: values.intro.trim(),
-        bio: trimmedParagraphs,
+        bio: trimmed,
         location: values.location.trim(),
         github: values.github.trim(),
         linkedin: values.linkedin.trim(),
@@ -311,6 +356,7 @@ export default function AdminProfilePage() {
         }
         if (Object.keys(mapped).length > 0) {
           setFieldErrors(mapped);
+          focusProfileErrors(mapped);
         }
         setFormError(formMessage ?? describeError(requestError, 'We could not save your profile.'));
       } else {
@@ -319,6 +365,46 @@ export default function AdminProfilePage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (submitting) {
+      return;
+    }
+
+    const trimmed = trimmedParagraphs();
+    const errors = validate(values, trimmed);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setFormError('Please fix the highlighted fields and try again.');
+      focusProfileErrors(errors);
+      return;
+    }
+
+    // Removing existing content is destructive even though it is only a form
+    // edit, so confirm before the request reduces the saved paragraph count.
+    if (trimmed.length < savedParagraphCount) {
+      setSaveDialogOpen(true);
+      return;
+    }
+
+    await saveProfile(trimmed);
+  }
+
+  async function confirmReducedSave() {
+    setSaveDialogOpen(false);
+
+    const trimmed = trimmedParagraphs();
+    const errors = validate(values, trimmed);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setFormError('Please fix the highlighted fields and try again.');
+      focusProfileErrors(errors);
+      return;
+    }
+
+    await saveProfile(trimmed);
   }
 
   if (status === 'loading') {
@@ -447,12 +533,15 @@ export default function AdminProfilePage() {
                     maxLength={2000}
                     value={paragraph.text}
                     onChange={(event) => updateParagraph(paragraph.id, event.target.value)}
+                    aria-invalid={Boolean(
+                      fieldErrors.bio && paragraph.text.trim().length > 2000,
+                    )}
                   />
                   {paragraphs.length > 1 ? (
                     <button
                       type="button"
-                      onClick={() => removeParagraph(paragraph.id)}
-                      className="mt-1.5 text-xs font-semibold text-[#8f1d15] underline decoration-transparent underline-offset-2 transition-ui hover:decoration-current"
+                      onClick={() => requestRemoveParagraph(paragraph.id)}
+                      className="mt-1 inline-flex min-h-[44px] items-center text-xs font-semibold text-[#8f1d15] underline decoration-transparent underline-offset-2 transition-ui hover:decoration-current"
                     >
                       Remove paragraph {index + 1}
                     </button>
@@ -462,7 +551,11 @@ export default function AdminProfilePage() {
             })}
           </div>
 
-          {fieldErrors.bio ? <p className={fieldErrorClass}>{fieldErrors.bio}</p> : null}
+          {fieldErrors.bio ? (
+            <p id="profile-bio-error" className={fieldErrorClass}>
+              {fieldErrors.bio}
+            </p>
+          ) : null}
 
           <div className="mt-3">
             <Button
@@ -477,12 +570,60 @@ export default function AdminProfilePage() {
           </div>
         </fieldset>
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setDiscardDialogOpen(true)}
+            disabled={!dirty || submitting}
+          >
+            Discard changes
+          </Button>
           <Button type="submit" variant="solid" disabled={submitting}>
             {submitting ? 'Saving…' : 'Save profile'}
           </Button>
         </div>
       </form>
+
+      {paragraphToRemove !== null ? (
+        <ConfirmDialog
+          title="Remove this paragraph?"
+          message="This paragraph will be removed from the biography. You can still cancel or discard your changes before saving."
+          confirmLabel="Remove paragraph"
+          busyLabel="Removing…"
+          busy={false}
+          onCancel={() => setParagraphToRemove(null)}
+          onConfirm={confirmRemoveParagraph}
+        />
+      ) : null}
+
+      {discardDialogOpen ? (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          message={UNSAVED_PROFILE_MESSAGE}
+          confirmLabel="Discard changes"
+          busyLabel="Discarding…"
+          busy={false}
+          onCancel={() => setDiscardDialogOpen(false)}
+          onConfirm={confirmDiscardChanges}
+        />
+      ) : null}
+
+      {saveDialogOpen ? (
+        <ConfirmDialog
+          title="Save with fewer paragraphs?"
+          message={`This save will reduce the biography from ${savedParagraphCount} ${
+            savedParagraphCount === 1 ? 'paragraph' : 'paragraphs'
+          } to ${draftParagraphCount}. The removed ${
+            savedParagraphCount - draftParagraphCount === 1 ? 'paragraph' : 'paragraphs'
+          } will no longer appear in the public About section.`}
+          confirmLabel="Save profile"
+          busyLabel="Saving…"
+          busy={false}
+          onCancel={() => setSaveDialogOpen(false)}
+          onConfirm={confirmReducedSave}
+        />
+      ) : null}
 
       {reloadDialogOpen ? (
         <ConfirmDialog

@@ -42,13 +42,13 @@ export default function Skills() {
     >
       <Container>
         <div className="mb-9 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-9">
-          <div>
+          <div className="min-w-0">
             <p className="text-kicker font-bold uppercase tracking-[0.14em] text-subtle">
               Technical toolkit
             </p>
             <h2
               id="skills-title"
-              className="mt-3.5 text-headline font-medium leading-none tracking-[-0.06em]"
+              className="mt-3.5 text-headline font-medium leading-none tracking-[-0.06em] [overflow-wrap:anywhere]"
             >
               Skills that support the work<span className="text-accent">.</span>
             </h2>
@@ -65,16 +65,16 @@ export default function Skills() {
             return (
               <article
                 key={`${group.label}-${index}`}
-                className={`${cellBaseClass} ${getBentoSpan(index, skillGroups.length)}`}
+                className={`${cellBaseClass} min-w-0 ${getBentoSpan(index, skillGroups.length)}`}
                 style={{ transitionDelay: `${Math.min(index, 4) * 70}ms` }}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <h3 id={labelId} className="text-[0.8rem] font-semibold text-subtle">
+                <div className="flex min-w-0 items-start justify-between gap-4">
+                  <h3 id={labelId} className="min-w-0 text-[0.8rem] font-semibold text-subtle [overflow-wrap:anywhere]">
                     {group.label}
                   </h3>
                   <span
                     aria-hidden="true"
-                    className="text-[0.68rem] font-bold tracking-[0.14em] text-subtle/60"
+                    className="shrink-0 text-[0.68rem] font-bold tracking-[0.14em] text-subtle/60"
                   >
                     {String(index + 1).padStart(2, '0')}
                   </span>
@@ -82,7 +82,7 @@ export default function Skills() {
 
                 <ul
                   aria-labelledby={labelId}
-                  className="mt-5 flex flex-1 flex-wrap content-start gap-2.5"
+                  className="mt-5 flex min-w-0 flex-1 flex-wrap content-start gap-2.5"
                 >
                   {group.items.map((item, itemIndex) => (
                     <li key={`${group.label}-${item}-${itemIndex}`} className={tagClass}>

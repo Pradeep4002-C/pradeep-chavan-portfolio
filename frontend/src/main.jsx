@@ -1,6 +1,7 @@
 import { StrictMode, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
+import RouteErrorBoundary from './components/RouteErrorBoundary.jsx';
 import './index.css';
 
 const rootElement = document.getElementById('root');
@@ -13,9 +14,8 @@ if (!rootElement) {
    Only /admin/* loads the admin bundle, so react-router-dom and the dashboard
    never enter the public portfolio's JavaScript. */
 const ADMIN_PATH = /^\/admin(?:\/|$)/;
-const AdminRoot = ADMIN_PATH.test(window.location.pathname)
-  ? lazy(() => import('./admin/AdminRoot.jsx'))
-  : null;
+const isAdminPath = ADMIN_PATH.test(window.location.pathname);
+const AdminRoot = isAdminPath ? lazy(() => import('./admin/AdminRoot.jsx')) : null;
 
 function AdminBootFallback() {
   return (
@@ -31,12 +31,14 @@ function AdminBootFallback() {
 
 createRoot(rootElement).render(
   <StrictMode>
-    {AdminRoot ? (
-      <Suspense fallback={<AdminBootFallback />}>
-        <AdminRoot />
-      </Suspense>
-    ) : (
-      <App />
-    )}
+    <RouteErrorBoundary scope={isAdminPath ? 'admin' : 'public'}>
+      {AdminRoot ? (
+        <Suspense fallback={<AdminBootFallback />}>
+          <AdminRoot />
+        </Suspense>
+      ) : (
+        <App />
+      )}
+    </RouteErrorBoundary>
   </StrictMode>,
 );

@@ -108,7 +108,7 @@ export default function Hero() {
       </div>
 
       <Container>
-        <div className="max-w-[920px]">
+        <div className="min-w-0 max-w-[920px]">
           <p className="text-kicker font-bold uppercase tracking-[0.14em] text-subtle">
             Hello, I&rsquo;m
           </p>
@@ -117,7 +117,7 @@ export default function Hero() {
               heading keeps its final two-line height from the first frame. */}
           <h1
             id="hero-title"
-            className="relative mt-3 text-balance text-[clamp(3.5rem,8vw,6.5rem)] font-extrabold leading-tight tracking-tight"
+            className="relative mt-3 text-balance text-[clamp(3.5rem,8vw,6.5rem)] font-extrabold leading-tight tracking-tight [overflow-wrap:anywhere]"
           >
             <span className="sr-only">{fullName}</span>
             <span aria-hidden="true" className="invisible block">
@@ -142,7 +142,7 @@ export default function Hero() {
           </p>
 
           {intro ? (
-            <p className="mt-4 max-w-[640px] text-[clamp(1.06rem,1.9vw,1.35rem)] font-medium leading-relaxed tracking-[-0.015em] text-ink">
+            <p className="mt-4 max-w-[640px] text-[clamp(1.06rem,1.9vw,1.35rem)] font-medium leading-relaxed tracking-[-0.015em] text-ink [overflow-wrap:anywhere]">
               {intro}
             </p>
           ) : null}

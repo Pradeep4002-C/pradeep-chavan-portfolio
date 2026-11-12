@@ -11,6 +11,8 @@ let dom;
 let server;
 let createRoot;
 let act;
+let createMemoryRouter;
+let RouterProvider;
 let ResourceManager;
 let AdminAuthProvider;
 const savedGlobals = new Map();
@@ -119,6 +121,25 @@ before(async () => {
     appType: 'custom',
     logLevel: 'silent',
     server: { middlewareMode: true },
+    // The application uses react-router's ESM entries in the browser build.
+    // SSR otherwise resolves separate CommonJS copies, which breaks the
+    // router context that `useBlocker` must share with `RouterProvider`.
+    resolve: {
+      alias: [
+        {
+          find: /^react-router-dom$/,
+          replacement: fileURLToPath(import.meta.resolve('react-router-dom')),
+        },
+        {
+          find: /^react-router\/dom$/,
+          replacement: fileURLToPath(import.meta.resolve('react-router/dom')),
+        },
+        {
+          find: /^react-router$/,
+          replacement: fileURLToPath(import.meta.resolve('react-router')),
+        },
+      ],
+    },
   });
 
   dom = new JSDOM('<!doctype html><html><body><div id="root"></div><div id="host"></div></body></html>', {
@@ -131,6 +152,10 @@ before(async () => {
   const testUtils = await import('react-dom/test-utils');
   createRoot = reactDomClient.createRoot;
   act = React.act ?? testUtils.act;
+
+  const routerModule = await server.ssrLoadModule('react-router-dom');
+  createMemoryRouter = routerModule.createMemoryRouter;
+  RouterProvider = routerModule.RouterProvider;
 
   const managerModule = await server.ssrLoadModule('/src/admin/ResourceManager.jsx');
   const authModule = await server.ssrLoadModule('/src/admin/AdminAuthContext.jsx');
@@ -176,17 +201,38 @@ async function unmount(root, host) {
 
 async function mountManager() {
   const { host, root } = createHost();
+  const router = createMemoryRouter(
+    [
+      {
+        path: '/admin/skills',
+        element: React.createElement(
+          AdminAuthProvider,
+          null,
+          React.createElement(ResourceManager, { config: makeConfig() }),
+        ),
+      },
+      {
+        path: '/admin',
+        element: React.createElement('div', null, 'Admin dashboard'),
+      },
+    ],
+    { initialEntries: ['/admin/skills'] },
+  );
+
   await act(async () => {
-    root.render(
-      React.createElement(
-        AdminAuthProvider,
-        null,
-        React.createElement(ResourceManager, { config: makeConfig() }),
-      ),
-    );
+    root.render(React.createElement(RouterProvider, { router }));
   });
   await flush();
-  return { host, root };
+  return { host, root, router };
+}
+
+async function navigate(router, path) {
+  let navigation;
+  await act(async () => {
+    navigation = router.navigate(path);
+  });
+  await flush();
+  return navigation;
 }
 
 function buttonByText(container, label) {
@@ -283,6 +329,80 @@ test('an untouched resource form closes without a discard dialog', async () => {
     assert.equal(document.querySelector('[role="alertdialog"]'), null);
     assert.equal(document.getElementById('resource-skills-label'), null);
     assert.ok(buttonByText(host, 'Add skill group'));
+  } finally {
+    await unmount(root, host);
+  }
+});
+
+test('an invalid resource save focuses the first invalid field', async () => {
+  const { host, root } = await mountManager();
+
+  try {
+    await click(buttonByText(host, 'Add skill group'));
+    await flush();
+
+    const formDialog = document.querySelector('[role="dialog"]');
+    assert.ok(formDialog, 'the create dialog must be open');
+    await click(buttonByText(formDialog, 'Add skill group'));
+    await flush();
+
+    const label = document.getElementById('resource-skills-label');
+    assert.equal(document.activeElement, label, 'focus must land on the first invalid control');
+    assert.equal(label.getAttribute('aria-invalid'), 'true');
+    assert.equal(
+      document.getElementById('resource-skills-label-error').textContent,
+      'Enter a label.',
+    );
+    assert.match(document.body.textContent, /Please fix the highlighted fields/);
+    assert.equal(label.value, '');
+  } finally {
+    await unmount(root, host);
+  }
+});
+
+test('dirty resource edits arm beforeunload and block route changes until discarded', async () => {
+  const { host, root, router } = await mountManager();
+
+  try {
+    await click(buttonByText(host, 'Add skill group'));
+    await flush();
+    const label = document.getElementById('resource-skills-label');
+    await setValue(label, 'Languages');
+
+    const unload = new window.Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    assert.equal(unload.defaultPrevented, true, 'a dirty form must warn before leaving');
+
+    await navigate(router, '/admin');
+
+    assert.equal(router.state.location.pathname, '/admin/skills');
+    let dialog = document.querySelector('[role="alertdialog"]');
+    assert.ok(dialog, 'in-app navigation must be blocked while the draft is dirty');
+    assert.match(dialog.textContent, /Discard unsaved changes\?/);
+    assert.equal(
+      document.getElementById('resource-skills-label').value,
+      'Languages',
+      'the confirmation must preserve the draft',
+    );
+
+    await click(buttonByText(dialog, 'Cancel'));
+    await flush();
+
+    assert.equal(document.querySelector('[role="alertdialog"]'), null);
+    assert.equal(router.state.location.pathname, '/admin/skills');
+    assert.equal(document.getElementById('resource-skills-label').value, 'Languages');
+
+    await navigate(router, '/admin');
+
+    dialog = document.querySelector('[role="alertdialog"]');
+    assert.ok(dialog, 'navigating again must ask again');
+    await click(buttonByText(dialog, 'Discard changes'));
+    await flush();
+    await flush();
+
+    assert.equal(router.state.location.pathname, '/admin');
+    assert.equal(document.getElementById('resource-skills-label'), null);
+    assert.match(host.textContent, /Admin dashboard/);
   } finally {
     await unmount(root, host);
   }

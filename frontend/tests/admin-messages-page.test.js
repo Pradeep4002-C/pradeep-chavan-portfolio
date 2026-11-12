@@ -260,6 +260,15 @@ test('messages page hides bodies, persists View/Hide, syncs read, filters, refre
     let alice = rowByText(host, 'Alice');
     assert.ok(alice);
     assert.match(alice.textContent, /Message body hidden/);
+    assert.equal(
+      buttonByText(alice, 'View message').getAttribute('aria-expanded'),
+      'false',
+    );
+    assert.equal(
+      buttonByText(alice, 'View message').getAttribute('aria-controls'),
+      'admin-message-body-m1',
+    );
+    assert.equal(buttonByText(alice, 'Mark read').getAttribute('aria-pressed'), 'false');
 
     await click(buttonByText(alice, 'View message'));
     await flush();
@@ -267,6 +276,10 @@ test('messages page hides bodies, persists View/Hide, syncs read, filters, refre
     alice = rowByText(host, 'Alice');
     assert.match(alice.textContent, /Did u get my message/);
     assert.ok(buttonByText(alice, 'Hide message'));
+    assert.equal(
+      buttonByText(alice, 'Hide message').getAttribute('aria-expanded'),
+      'true',
+    );
     assert.equal(
       fetchCalls.filter((call) => call.method === 'PATCH').at(-1).body.hidden,
       false,
@@ -279,6 +292,10 @@ test('messages page hides bodies, persists View/Hide, syncs read, filters, refre
     assert.doesNotMatch(alice.textContent, /Did u get my message/);
     assert.ok(buttonByText(alice, 'View message'));
     assert.equal(
+      buttonByText(alice, 'View message').getAttribute('aria-expanded'),
+      'false',
+    );
+    assert.equal(
       fetchCalls.filter((call) => call.method === 'PATCH').at(-1).body.hidden,
       true,
     );
@@ -288,6 +305,10 @@ test('messages page hides bodies, persists View/Hide, syncs read, filters, refre
 
     alice = rowByText(host, 'Alice');
     assert.ok([...alice.querySelectorAll('span')].some((span) => span.textContent === 'Read'));
+    assert.equal(
+      buttonByText(alice, 'Mark unread').getAttribute('aria-pressed'),
+      'true',
+    );
     assert.match(host.textContent, /Message marked as read/);
     assert.equal(
       fetchCalls.filter((call) => call.method === 'PATCH').at(-1).body.read,
@@ -326,6 +347,10 @@ test('messages page hides bodies, persists View/Hide, syncs read, filters, refre
     assert.equal(rowByText(host, 'Bob'), undefined);
 
     alice = rowByText(host, 'Alice');
+    assert.equal(
+      buttonByText(alice, 'Mark unread').getAttribute('aria-pressed'),
+      'true',
+    );
     await click(buttonByText(alice, 'Mark unread'));
     await flush();
 

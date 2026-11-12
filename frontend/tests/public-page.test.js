@@ -392,6 +392,350 @@ test('a deep link is aligned after async portfolio data settles', async (t) => {
   }
 });
 
+test('the active-section spy marks the first visible section in navigation order', async (t) => {
+  const { document: testDocument, restore } = installTestDocument(
+    `<!doctype html><html><body>
+      <div id="root"></div>
+      <section id="home"></section>
+      <section id="work"></section>
+      <section id="skills"></section>
+      <section id="about"></section>
+      <section id="background"></section>
+      <section id="contact"></section>
+    </body></html>`,
+    'http://localhost/',
+  );
+
+  const view = testDocument.defaultView;
+  view.matchMedia = () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  });
+
+  const observers = [];
+
+  class FakeIntersectionObserver {
+    constructor(callback, options) {
+      this.callback = callback;
+      this.options = options;
+      this.observed = [];
+      this.disconnected = false;
+      observers.push(this);
+    }
+
+    observe(element) {
+      this.observed.push(element.id);
+    }
+
+    disconnect() {
+      this.disconnected = true;
+    }
+  }
+
+  const previousObserver = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'IntersectionObserver',
+  );
+  Object.defineProperty(globalThis, 'IntersectionObserver', {
+    configurable: true,
+    writable: true,
+    value: FakeIntersectionObserver,
+  });
+
+  try {
+    const { PortfolioContext, Navbar } = await loadModules(t);
+    const { createRoot } = await import('react-dom/client');
+    const root = createRoot(testDocument.getElementById('root'));
+
+    await React.act(async () => {
+      root.render(
+        React.createElement(
+          PortfolioContext.Provider,
+          { value: portfolioValue() },
+          React.createElement(Navbar),
+        ),
+      );
+    });
+
+    const observer = observers.at(-1);
+    assert.ok(observer, 'the navbar must create an IntersectionObserver');
+    assert.deepEqual(observer.observed, [
+      'home',
+      'work',
+      'skills',
+      'about',
+      'background',
+      'contact',
+    ]);
+    assert.match(observer.options.rootMargin, /^-\d+px 0px -\d+px 0px$/);
+
+    const activeHref = () =>
+      testDocument
+        .querySelector('a[aria-current="location"]')
+        ?.getAttribute('href') ?? null;
+    const entry = (id, isIntersecting) => ({
+      target: testDocument.getElementById(id),
+      isIntersecting,
+    });
+
+    await React.act(async () => {
+      observer.callback([entry('work', true), entry('skills', true)]);
+    });
+    assert.equal(activeHref(), '#work');
+
+    await React.act(async () => {
+      observer.callback([entry('work', false)]);
+    });
+    assert.equal(activeHref(), '#skills');
+
+    await React.act(async () => {
+      observer.callback([
+        entry('skills', false),
+        entry('about', true),
+        entry('background', true),
+      ]);
+    });
+    assert.equal(activeHref(), '#about');
+
+    await React.act(async () => {
+      observer.callback([
+        entry('about', false),
+        entry('background', false),
+        entry('contact', true),
+      ]);
+    });
+    assert.equal(activeHref(), '#contact');
+
+    // Home has no nav link; at the very top no marker should be claimed.
+    await React.act(async () => {
+      observer.callback([entry('contact', false), entry('home', true)]);
+    });
+    assert.equal(activeHref(), null);
+
+    await React.act(async () => {
+      root.unmount();
+    });
+    assert.equal(observer.disconnected, true);
+  } finally {
+    if (previousObserver) {
+      Object.defineProperty(globalThis, 'IntersectionObserver', previousObserver);
+    } else {
+      delete globalThis.IntersectionObserver;
+    }
+    restore();
+  }
+});
+
+test('the mobile navigation uses a centred SVG icon, a backdrop, scroll lock, and post-close section jumps', async (t) => {
+  const sectionIds = ['home', 'work', 'skills', 'about', 'background', 'contact'];
+  const { document: testDocument, restore } = installTestDocument(
+    `<!doctype html><html><head><title>Navbar test</title></head><body><div id="root"></div>${sectionIds
+      .map((id) => `<section id="${id}"></section>`)
+      .join('')}</body></html>`,
+    'http://localhost/',
+  );
+
+  try {
+    const view = testDocument.defaultView;
+    view.matchMedia = () => ({
+      matches: false,
+      addEventListener() {},
+      removeEventListener() {},
+    });
+
+    const scrollCalls = [];
+    for (const id of sectionIds) {
+      testDocument.getElementById(id).scrollIntoView = (options) => {
+        scrollCalls.push({ id, options });
+      };
+    }
+
+    const { PortfolioContext, Navbar } = await loadModules(t);
+    const { createRoot } = await import('react-dom/client');
+    const root = createRoot(testDocument.getElementById('root'));
+
+    await React.act(async () => {
+      root.render(
+        React.createElement(
+          PortfolioContext.Provider,
+          { value: portfolioValue() },
+          React.createElement(Navbar),
+        ),
+      );
+    });
+
+    const toggle = testDocument.querySelector(
+      'button[aria-controls="primary-navigation"]',
+    );
+    const panel = testDocument.getElementById('primary-navigation');
+    assert.ok(toggle, 'the mobile menu toggle must render');
+
+    const menuIcon = () => toggle.querySelector('svg[data-menu-icon]');
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(menuIcon()?.getAttribute('data-menu-icon'), 'menu');
+    assert.deepEqual(
+      Array.from(menuIcon().querySelectorAll('path')).map((path) => path.getAttribute('d')),
+      ['M4 8h16', 'M4 16h16'],
+    );
+
+    await React.act(async () => {
+      toggle.click();
+    });
+
+    assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+    assert.equal(menuIcon()?.getAttribute('data-menu-icon'), 'close');
+    assert.deepEqual(
+      Array.from(menuIcon().querySelectorAll('path')).map((path) => path.getAttribute('d')),
+      ['M6 6 18 18', 'M18 6 6 18'],
+    );
+    assert.ok(
+      testDocument.querySelector('[data-mobile-menu-backdrop]'),
+      'an open drawer must render a click-outside backdrop',
+    );
+    assert.equal(testDocument.body.style.overflow, 'hidden');
+
+    await React.act(async () => {
+      testDocument.querySelector('[data-mobile-menu-backdrop]').click();
+    });
+
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(
+      testDocument.querySelector('[data-mobile-menu-backdrop]'),
+      null,
+      'clicking the backdrop must close the drawer',
+    );
+    assert.equal(testDocument.body.style.overflow, '', 'closing must restore body scrolling');
+
+    await React.act(async () => {
+      toggle.click();
+    });
+    assert.equal(testDocument.body.style.overflow, 'hidden');
+
+    const aboutLink = panel.querySelector('a[href="#about"]');
+    assert.ok(aboutLink, 'the drawer must include the About section link');
+
+    await React.act(async () => {
+      aboutLink.click();
+    });
+    await React.act(async () => {
+      await new Promise((resolve) => view.requestAnimationFrame(resolve));
+    });
+
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(testDocument.body.style.overflow, '', 'a section link must unlock scrolling');
+    assert.equal(view.location.hash, '#about');
+    assert.deepEqual(scrollCalls, [
+      { id: 'about', options: { block: 'start', behavior: 'smooth' } },
+    ]);
+
+    await React.act(async () => {
+      toggle.click();
+    });
+    assert.equal(testDocument.body.style.overflow, 'hidden');
+
+    await React.act(async () => {
+      root.unmount();
+    });
+    assert.equal(
+      testDocument.body.style.overflow,
+      '',
+      'unmounting with the drawer open must release the scroll lock',
+    );
+  } finally {
+    restore();
+  }
+});
+
+test('an invalid contact submit focuses and scrolls to the first invalid field', async (t) => {
+  const { document: testDocument, restore } = installTestDocument(
+    '<!doctype html><html><head><title>Contact focus test</title></head><body><div id="root"></div></body></html>',
+    'http://localhost/#contact',
+  );
+
+  try {
+    const view = testDocument.defaultView;
+    const scrollCalls = [];
+    view.HTMLElement.prototype.scrollIntoView = function scrollIntoView(options) {
+      scrollCalls.push({ id: this.id, options });
+    };
+
+    const { PortfolioContext, Contact } = await loadModules(t);
+    const { createRoot } = await import('react-dom/client');
+    const root = createRoot(testDocument.getElementById('root'));
+
+    await React.act(async () => {
+      root.render(
+        React.createElement(
+          PortfolioContext.Provider,
+          { value: portfolioValue() },
+          React.createElement(Contact),
+        ),
+      );
+    });
+
+    const submit = Array.from(testDocument.querySelectorAll('button')).find(
+      (button) => button.textContent.replace(/\s+/g, ' ').trim() === 'Send message',
+    );
+    assert.ok(submit, 'the contact form must render its submit button');
+
+    await React.act(async () => {
+      submit.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const name = testDocument.getElementById('contact-name');
+    assert.equal(testDocument.activeElement, name, 'focus must move to the first invalid field');
+    assert.equal(name.getAttribute('aria-invalid'), 'true');
+    assert.equal(
+      testDocument.getElementById('contact-name-error').textContent,
+      'Enter your name.',
+    );
+    assert.match(testDocument.body.textContent, /Please check the highlighted fields/);
+    assert.deepEqual(scrollCalls, [{ id: 'contact-name', options: { block: 'center' } }]);
+
+    const setValue = (element, value) => {
+      const prototype =
+        element instanceof view.HTMLTextAreaElement
+          ? view.HTMLTextAreaElement.prototype
+          : view.HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, value);
+      element.dispatchEvent(new view.Event('input', { bubbles: true }));
+    };
+
+    await React.act(async () => {
+      setValue(name, 'Pradeep Chavan');
+      setValue(testDocument.getElementById('contact-email'), 'owner@example.com');
+    });
+
+    scrollCalls.length = 0;
+
+    await React.act(async () => {
+      submit.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const message = testDocument.getElementById('contact-message');
+    assert.equal(
+      testDocument.activeElement,
+      message,
+      'when earlier fields are valid, focus must skip to the message',
+    );
+    assert.equal(message.getAttribute('aria-invalid'), 'true');
+    assert.equal(
+      testDocument.getElementById('contact-message-error').textContent,
+      'Enter a message.',
+    );
+    assert.deepEqual(scrollCalls, [{ id: 'contact-message', options: { block: 'center' } }]);
+
+    await React.act(async () => {
+      root.unmount();
+    });
+  } finally {
+    restore();
+  }
+});
+
 test('the public metadata uses the production origin and a complete social image contract', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const compactHtml = html.replace(/\s+/g, ' ');

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom';
 import Button from '../components/Button.jsx';
+import { focusFirstError } from '../components/formFocus.js';
 import ProjectArtwork from '../components/ProjectArtwork.jsx';
 import { createProject, fetchProject, updateProject } from './adminApi.js';
 import { useAdminAuth } from './AdminAuthContext.jsx';
@@ -41,6 +42,20 @@ const ALLOWED_SERVER_FIELDS = new Set([
   'order',
   'published',
 ]);
+
+const PROJECT_ERROR_ORDER = [
+  'title',
+  'slug',
+  'category',
+  'summary',
+  'description',
+  'technologies',
+  'repoUrl',
+  'demoUrl',
+  'order',
+  'artwork',
+  'workflow',
+];
 
 function mapServerFields(fields) {
   const mapped = {};
@@ -174,35 +189,10 @@ export default function ProjectEditorPage() {
     setValues((previous) => ({ ...previous, [key]: value }));
   }
 
-  function focusFirstError(errors) {
-    const order = [
-      'title',
-      'slug',
-      'category',
-      'summary',
-      'description',
-      'technologies',
-      'repoUrl',
-      'demoUrl',
-      'order',
-      'artwork',
-      'workflow',
-    ];
-    const first = order.find((key) => errors[key]);
-    if (!first) {
-      return;
-    }
-
-    // A zero-delay task runs after React has committed the error state and is
-    // not throttled when the tab is in the background, unlike requestAnimationFrame.
-    setTimeout(() => {
-      const target =
-        first === 'workflow'
-          ? document.getElementById('project-workflow-section')
-          : document.getElementById(`project-${first}`);
-      target?.focus?.({ preventScroll: false });
-      target?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
-    }, 0);
+  function focusProjectError(errors) {
+    focusFirstError(errors, PROJECT_ERROR_ORDER, (key) =>
+      document.getElementById(key === 'workflow' ? 'project-workflow-section' : `project-${key}`),
+    );
   }
 
   async function handleSubmit(event) {
@@ -215,7 +205,7 @@ export default function ProjectEditorPage() {
     setFieldErrors(clientErrors);
     if (Object.keys(clientErrors).length > 0) {
       setFormError('Please fix the highlighted fields and try again.');
-      focusFirstError(clientErrors);
+      focusProjectError(clientErrors);
       return;
     }
 
@@ -251,7 +241,7 @@ export default function ProjectEditorPage() {
       const { mapped, formMessage } = mapServerFields(error?.fields);
       if (Object.keys(mapped).length > 0) {
         setFieldErrors(mapped);
-        focusFirstError(mapped);
+        focusProjectError(mapped);
       }
       setFormError(
         formMessage ?? describeError(error, 'We could not save the project. Please try again.'),
@@ -273,13 +263,19 @@ export default function ProjectEditorPage() {
       <nav aria-label="Breadcrumb" className="mb-4">
         <ol className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-muted">
           <li>
-            <Link className="rounded hover:text-accent" to="/admin">
+            <Link
+              className="inline-flex min-h-[44px] min-w-[44px] items-center rounded hover:text-accent"
+              to="/admin"
+            >
               Dashboard
             </Link>
           </li>
           <li aria-hidden="true">/</li>
           <li>
-            <Link className="rounded hover:text-accent" to="/admin/projects">
+            <Link
+              className="inline-flex min-h-[44px] min-w-[44px] items-center rounded hover:text-accent"
+              to="/admin/projects"
+            >
               Projects
             </Link>
           </li>
@@ -302,7 +298,7 @@ export default function ProjectEditorPage() {
           </div>
           <Link
             to="/admin/projects"
-            className="inline-flex min-h-[40px] w-fit items-center rounded-full border border-line-strong px-4 text-sm font-semibold text-ink transition-ui hover:border-accent hover:text-accent"
+            className="inline-flex min-h-[44px] w-fit items-center rounded-full border border-line-strong px-4 text-sm font-semibold text-ink transition-ui hover:border-accent hover:text-accent"
           >
             Back to projects
           </Link>
@@ -593,7 +589,7 @@ export default function ProjectEditorPage() {
               description="Published projects appear in the public work section. Draft projects stay in the dashboard."
             >
               <div className="flex flex-col gap-3">
-                <label className="flex items-center gap-2.5 text-sm font-medium text-ink">
+                <label className="flex min-h-[44px] cursor-pointer items-center gap-2.5 text-sm font-medium text-ink">
                   <input
                     type="checkbox"
                     className="size-4 rounded border-line text-accent"
@@ -607,7 +603,7 @@ export default function ProjectEditorPage() {
                   Note: Only one project can be featured. Checking this will un-feature any
                   currently featured project.
                 </p>
-                <label className="flex items-center gap-2.5 text-sm font-medium text-ink">
+                <label className="flex min-h-[44px] cursor-pointer items-center gap-2.5 text-sm font-medium text-ink">
                   <input
                     type="checkbox"
                     className="size-4 rounded border-line text-accent"

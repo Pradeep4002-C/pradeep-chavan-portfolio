@@ -4,12 +4,12 @@
    part of the project's proof. Keep new tag-like lists on one of these two
    recipes rather than adding a third near-identical treatment. */
 export const tagClass =
-  'rounded-full border border-line bg-paper px-2.5 py-1.5 text-[0.7rem] font-semibold text-[#56564f]';
+  'max-w-full rounded-full border border-line bg-paper px-2.5 py-1.5 text-[0.7rem] font-semibold text-[#56564f] [overflow-wrap:anywhere]';
 
 /* Project pills use the accent tint so the technology stack reads as part of
    the project's proof rather than as a neutral metadata strip. */
 export const projectTagClass =
-  'rounded-full border border-accent-soft bg-accent-soft/50 px-2.5 py-1.5 text-[0.7rem] font-semibold text-accent-strong';
+  'max-w-full rounded-full border border-accent-soft bg-accent-soft/50 px-2.5 py-1.5 text-[0.7rem] font-semibold text-accent-strong [overflow-wrap:anywhere]';
 
 /** Reusable list of technologies shown beneath a project description. */
 export default function TechnologyTags({

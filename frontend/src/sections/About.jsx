@@ -52,7 +52,7 @@ export default function About() {
                 design." broke after "by" from 1366px up. */}
             <h2
               id="about-title"
-              className="mt-5 text-[clamp(2.15rem,4.6vw,3.9rem)] font-medium leading-none tracking-[-0.065em]"
+              className="mt-5 text-[clamp(2.15rem,4.6vw,3.9rem)] font-medium leading-none tracking-[-0.065em] [overflow-wrap:anywhere]"
             >
               Curious by nature.
               <br />
@@ -69,7 +69,7 @@ export default function About() {
                 Profile
               </p>
               {hasBio ? (
-                <p className="mt-5 text-[clamp(1.08rem,1.65vw,1.35rem)] leading-relaxed tracking-[-0.02em]">
+                <p className="mt-5 text-[clamp(1.08rem,1.65vw,1.35rem)] leading-relaxed tracking-[-0.02em] [overflow-wrap:anywhere]">
                   {leadParagraph}
                 </p>
               ) : null}
@@ -78,7 +78,7 @@ export default function About() {
                   <p className="text-kicker font-bold uppercase tracking-[0.14em] text-subtle">
                     Current focus
                   </p>
-                  <p className="mt-3 text-[clamp(1.08rem,1.65vw,1.35rem)] leading-relaxed tracking-[-0.02em]">
+                  <p className="mt-3 text-[clamp(1.08rem,1.65vw,1.35rem)] leading-relaxed tracking-[-0.02em] [overflow-wrap:anywhere]">
                     {profile.headline}
                   </p>
                 </div>
@@ -98,7 +98,7 @@ export default function About() {
                 {remainingBio.map((paragraph, index) => (
                   <p
                     key={index}
-                    className={`${index === 0 ? '' : 'mt-4 '}text-[0.92rem] leading-relaxed text-muted`}
+                    className={`${index === 0 ? '' : 'mt-4 '}text-[0.92rem] leading-relaxed text-muted [overflow-wrap:anywhere]`}
                   >
                     {paragraph}
                   </p>

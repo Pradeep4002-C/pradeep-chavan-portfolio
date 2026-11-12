@@ -137,7 +137,7 @@ export default function AdminOverviewPage() {
             href="/"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-[40px] items-center rounded-full border border-line px-4 text-sm font-semibold text-ink transition-colors hover:border-accent/40 hover:text-accent"
+            className="inline-flex min-h-[44px] items-center rounded-full border border-line px-4 text-sm font-semibold text-ink transition-colors hover:border-accent/40 hover:text-accent"
           >
             View public site
           </a>

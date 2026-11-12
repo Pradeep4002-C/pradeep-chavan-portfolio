@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom';
 import { AdminAuthProvider } from './AdminAuthContext.jsx';
 import AdminLayout from './AdminLayout.jsx';
+import AdminRouteError from './AdminRouteError.jsx';
 import ProtectedRoute from './ProtectedRoute.jsx';
 import { AdminLoading } from './AdminUi.jsx';
 
@@ -26,36 +27,44 @@ const AdminProfilePage = lazy(() => import('./AdminProfilePage.jsx'));
 
 const router = createBrowserRouter([
   {
-    path: '/admin/login',
-    element: (
-      <Suspense fallback={<AdminLoading label="Loading…" />}>
-        <AdminLoginPage />
-      </Suspense>
-    ),
-  },
-  {
-    element: <ProtectedRoute />,
+    // One top-level error element covers login, every protected dashboard page,
+    // and the catch-all redirect, so the router's raw debug screen can never be
+    // the fallback for an /admin/* render failure.
+    errorElement: <AdminRouteError />,
     children: [
       {
-        element: <AdminLayout />,
+        path: '/admin/login',
+        element: (
+          <Suspense fallback={<AdminLoading label="Loading…" />}>
+            <AdminLoginPage />
+          </Suspense>
+        ),
+      },
+      {
+        element: <ProtectedRoute />,
         children: [
-          { path: '/admin', element: <AdminOverviewPage /> },
-          { path: '/admin/projects', element: <AdminProjectsPage /> },
-          { path: '/admin/projects/new', element: <ProjectEditorPage /> },
-          { path: '/admin/projects/:id/edit', element: <ProjectEditorPage /> },
-          { path: '/admin/messages', element: <AdminMessagesPage /> },
-          { path: '/admin/skills', element: <AdminSkillsPage /> },
-          { path: '/admin/education', element: <AdminEducationPage /> },
-          { path: '/admin/certifications', element: <AdminCertificationsPage /> },
-          { path: '/admin/achievements', element: <AdminAchievementsPage /> },
-          { path: '/admin/profile', element: <AdminProfilePage /> },
+          {
+            element: <AdminLayout />,
+            children: [
+              { path: '/admin', element: <AdminOverviewPage /> },
+              { path: '/admin/projects', element: <AdminProjectsPage /> },
+              { path: '/admin/projects/new', element: <ProjectEditorPage /> },
+              { path: '/admin/projects/:id/edit', element: <ProjectEditorPage /> },
+              { path: '/admin/messages', element: <AdminMessagesPage /> },
+              { path: '/admin/skills', element: <AdminSkillsPage /> },
+              { path: '/admin/education', element: <AdminEducationPage /> },
+              { path: '/admin/certifications', element: <AdminCertificationsPage /> },
+              { path: '/admin/achievements', element: <AdminAchievementsPage /> },
+              { path: '/admin/profile', element: <AdminProfilePage /> },
+            ],
+          },
         ],
       },
+      {
+        path: '/admin/*',
+        element: <Navigate to="/admin" replace />,
+      },
     ],
-  },
-  {
-    path: '/admin/*',
-    element: <Navigate to="/admin" replace />,
   },
 ]);
 

@@ -12,7 +12,7 @@ function TechnologySummary({ items }) {
   const shown = items.slice(0, 4).join(', ');
   const extra = items.length - 4;
   return (
-    <span>
+    <span className="[overflow-wrap:anywhere]">
       {shown}
       {extra > 0 ? ` +${extra}` : ''}
     </span>
@@ -22,7 +22,7 @@ function TechnologySummary({ items }) {
 function StatusBadge({ published }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+      className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
         published ? 'bg-[#eef8f1] text-[#1f6f43]' : 'bg-sunken text-muted'
       }`}
     >
@@ -231,10 +231,10 @@ export default function AdminProjectsPage() {
                 {projects.map((project) => (
                   <tr key={project.id} className="border-b border-line align-top last:border-0">
                     <td className="px-4 py-3.5">
-                      <p className="font-semibold text-ink">{project.title}</p>
-                      <p className="mt-0.5 font-mono text-xs text-muted">{project.slug}</p>
+                      <p className="font-semibold text-ink [overflow-wrap:anywhere]">{project.title}</p>
+                      <p className="mt-0.5 break-all font-mono text-xs text-muted">{project.slug}</p>
                       {project.category ? (
-                        <p className="mt-0.5 text-xs text-muted">{project.category}</p>
+                        <p className="mt-0.5 text-xs text-muted [overflow-wrap:anywhere]">{project.category}</p>
                       ) : null}
                     </td>
                     <td className="px-4 py-3.5 text-muted">
@@ -258,6 +258,7 @@ export default function AdminProjectsPage() {
                         <Button
                           variant="outline"
                           size="sm"
+                          aria-pressed={Boolean(project.published)}
                           onClick={() => handleTogglePublished(project)}
                           disabled={Boolean(busyId)}
                         >
@@ -285,13 +286,13 @@ export default function AdminProjectsPage() {
               <li key={project.id} className="rounded-2xl border border-line bg-surface p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-semibold text-ink">{project.title}</p>
+                    <p className="font-semibold text-ink [overflow-wrap:anywhere]">{project.title}</p>
                     <p className="mt-0.5 break-all font-mono text-xs text-muted">{project.slug}</p>
                   </div>
                   <StatusBadge published={project.published} />
                 </div>
                 {project.category ? (
-                  <p className="mt-2 text-xs text-muted">{project.category}</p>
+                  <p className="mt-2 text-xs text-muted [overflow-wrap:anywhere]">{project.category}</p>
                 ) : null}
                 <p className="mt-2 text-xs text-muted">
                   <TechnologySummary items={project.technologies} />
@@ -311,6 +312,7 @@ export default function AdminProjectsPage() {
                   <Button
                     variant="outline"
                     size="sm"
+                    aria-pressed={Boolean(project.published)}
                     onClick={() => handleTogglePublished(project)}
                     disabled={Boolean(busyId)}
                   >

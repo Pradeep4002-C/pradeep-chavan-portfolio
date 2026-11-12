@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '../components/Button.jsx';
 import { useDialogFocus } from './dialogFocus.js';
@@ -8,7 +8,7 @@ import { useDialogFocus } from './dialogFocus.js';
    part of the same site without copying a generic dashboard theme. */
 
 export const inputClass =
-  'w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink transition-ui placeholder:text-subtle focus:border-accent';
+  'min-h-[44px] w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink transition-ui placeholder:text-subtle focus:border-accent';
 
 export const labelClass = 'mb-1.5 block text-[0.8rem] font-semibold text-ink';
 
@@ -90,12 +90,12 @@ export function Notice({ tone = 'error', children, onDismiss }) {
           : 'border-[#b7dcc4] bg-[#eef8f1] text-[#1f6f43]'
       }`}
     >
-      <span>{children}</span>
+      <span className="min-w-0 [overflow-wrap:anywhere]">{children}</span>
       {onDismiss ? (
         <button
           type="button"
           onClick={onDismiss}
-          className="shrink-0 rounded text-xs font-semibold underline decoration-transparent underline-offset-2 hover:decoration-current focus:decoration-current"
+          className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded text-xs font-semibold underline decoration-transparent underline-offset-2 hover:decoration-current focus:decoration-current"
         >
           Dismiss
         </button>
@@ -106,7 +106,7 @@ export function Notice({ tone = 'error', children, onDismiss }) {
 
 /** Shared destructive-action button styling (delete, remove, …). */
 export const dangerButtonClass =
-  'inline-flex min-h-[38px] items-center justify-center rounded-full border border-[#e0a9a3] px-3.5 text-[0.84rem] font-semibold text-[#8f1d15] transition-ui hover:border-[#8f1d15] hover:bg-[#fdf1f0] disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex min-h-[44px] items-center justify-center rounded-full border border-[#e0a9a3] px-3.5 text-[0.84rem] font-semibold text-[#8f1d15] transition-ui hover:border-[#8f1d15] hover:bg-[#fdf1f0] disabled:cursor-not-allowed disabled:opacity-60';
 
 /** Page heading with optional description and action buttons. */
 export function PageHeader({ title, description, children }) {
@@ -154,7 +154,8 @@ export function Dialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/45 px-4 py-8 sm:items-center"
+      data-dialog-layer="dialog"
+      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-ink/45 px-4 py-8 sm:items-center"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !busy) {
           onClose();
@@ -169,7 +170,7 @@ export function Dialog({
         aria-labelledby={labelledBy}
         aria-describedby={describedBy}
         aria-busy={busy}
-        className={`w-full rounded-2xl border border-line bg-surface shadow-xl outline-none ${className}`}
+        className={`max-h-[calc(100dvh-4rem)] w-full overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface shadow-xl outline-none ${className}`}
       >
         {children}
       </div>
@@ -188,13 +189,26 @@ export function ConfirmDialog({
   onCancel,
   onConfirm,
 }) {
+  // Confirmations can stack (for example an inactivity warning above a discard
+  // dialog, or a route blocker above an open editor). React's useId keeps each
+  // alertdialog's heading and message references unique in the DOM.
+  const headingId = useId();
+  const messageId = useId();
+
   return (
-    <Dialog role="alertdialog" labelledBy="confirm-heading" describedBy="confirm-message" busy={busy} onClose={onCancel} className="max-w-sm">
+    <Dialog
+      role="alertdialog"
+      labelledBy={headingId}
+      describedBy={messageId}
+      busy={busy}
+      onClose={onCancel}
+      className="max-w-sm"
+    >
       <div className="p-6">
-        <h2 id="confirm-heading" className="text-lg font-semibold tracking-[-0.02em] text-ink">
+        <h2 id={headingId} className="text-lg font-semibold tracking-[-0.02em] text-ink">
           {title}
         </h2>
-        <p id="confirm-message" className="mt-2 text-sm text-muted">
+        <p id={messageId} className="mt-2 text-sm text-muted [overflow-wrap:anywhere]">
           {message}
         </p>
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -219,7 +233,7 @@ export function Pagination({ page, pages, hasPrev, hasNext, onPage, busy = false
         type="button"
         onClick={() => onPage(page - 1)}
         disabled={!hasPrev || busy}
-        className="inline-flex min-h-[38px] items-center rounded-full border border-line-strong px-3.5 text-sm font-semibold text-ink transition-ui hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex min-h-[44px] items-center rounded-full border border-line-strong px-3.5 text-sm font-semibold text-ink transition-ui hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
       >
         Previous
       </button>
@@ -230,7 +244,7 @@ export function Pagination({ page, pages, hasPrev, hasNext, onPage, busy = false
         type="button"
         onClick={() => onPage(page + 1)}
         disabled={!hasNext || busy}
-        className="inline-flex min-h-[38px] items-center rounded-full border border-line-strong px-3.5 text-sm font-semibold text-ink transition-ui hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex min-h-[44px] items-center rounded-full border border-line-strong px-3.5 text-sm font-semibold text-ink transition-ui hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
       >
         Next
       </button>
@@ -248,7 +262,7 @@ export function AdminErrorState({ title = 'Something went wrong', message, onRet
         <button
           type="button"
           onClick={onRetry}
-          className="mt-1 inline-flex min-h-[40px] items-center rounded-full border border-line-strong px-4 text-sm font-semibold text-ink transition-ui hover:border-accent hover:text-accent"
+          className="mt-1 inline-flex min-h-[44px] items-center rounded-full border border-line-strong px-4 text-sm font-semibold text-ink transition-ui hover:border-accent hover:text-accent"
         >
           {retryLabel}
         </button>

@@ -11,7 +11,7 @@ const metaLabelClass =
 
 function Subsection({ title, description, listClassName = '', children }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-4">
         <h3 className="text-[0.95rem] font-bold">{title}</h3>
         {description ? (
@@ -28,7 +28,7 @@ function EducationList({ items }) {
     <Subsection
       title="Education"
       description="Academic foundation and current study."
-      listClassName="grid gap-4"
+      listClassName="grid grid-cols-1 gap-4"
     >
       {items.map((item, index) => {
         const period = formatPeriod(item.startYear, item.endYear);
@@ -36,19 +36,19 @@ function EducationList({ items }) {
         const hasMeta = Boolean(period || item.location);
 
         return (
-          <li key={`${item.institution}-${index}`} className={`${cardClass} p-5 sm:p-6`}>
+          <li key={`${item.institution}-${index}`} className={`${cardClass} min-w-0 p-5 sm:p-6`}>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <h4 className="text-[clamp(1.25rem,2vw,1.55rem)] font-semibold leading-tight tracking-[-0.035em]">
+                <h4 className="text-[clamp(1.25rem,2vw,1.55rem)] font-semibold leading-tight tracking-[-0.035em] [overflow-wrap:anywhere]">
                   {item.institution}
                 </h4>
                 {item.qualification ? (
-                  <p className="mt-2 text-[1rem] font-medium leading-relaxed text-ink">
+                  <p className="mt-2 text-[1rem] font-medium leading-relaxed text-ink [overflow-wrap:anywhere]">
                     {item.qualification}
                   </p>
                 ) : null}
                 {item.field ? (
-                  <p className="mt-0.5 text-[0.92rem] leading-relaxed text-muted">
+                  <p className="mt-0.5 text-[0.92rem] leading-relaxed text-muted [overflow-wrap:anywhere]">
                     {item.field}
                   </p>
                 ) : null}
@@ -76,7 +76,7 @@ function EducationList({ items }) {
                 {item.location ? (
                   <div>
                     <dt className={metaLabelClass}>Location</dt>
-                    <dd className="mt-1 text-[0.82rem] leading-relaxed text-muted">
+                    <dd className="mt-1 text-[0.82rem] leading-relaxed text-muted [overflow-wrap:anywhere]">
                       {item.location}
                     </dd>
                   </div>
@@ -95,7 +95,7 @@ function CertificationList({ items, listClassName = '' }) {
     <Subsection
       title="Certifications"
       description="Focused coursework and verified learning."
-      listClassName={`grid gap-4 ${listClassName}`}
+      listClassName={`grid grid-cols-1 gap-4 ${listClassName}`}
     >
       {items.map((item, index) => {
         const meta = [item.issuer, item.year === null ? null : String(item.year)]
@@ -105,15 +105,15 @@ function CertificationList({ items, listClassName = '' }) {
         return (
           <li
             key={`${item.title}-${index}`}
-            className={`${cardClass} flex flex-col p-5`}
+            className={`${cardClass} flex min-w-0 flex-col p-5`}
           >
             <p className="text-[0.64rem] font-bold uppercase tracking-[0.12em] text-subtle">
               Certificate {String(index + 1).padStart(2, '0')}
             </p>
-            <h4 className="mt-2.5 text-[1.02rem] font-semibold leading-snug tracking-[-0.015em]">
+            <h4 className="mt-2.5 text-[1.02rem] font-semibold leading-snug tracking-[-0.015em] [overflow-wrap:anywhere]">
               {item.title}
             </h4>
-            {meta ? <p className="mt-1.5 text-[0.82rem] text-muted">{meta}</p> : null}
+            {meta ? <p className="mt-1.5 text-[0.82rem] text-muted [overflow-wrap:anywhere]">{meta}</p> : null}
             {item.url ? (
               <a
                 className={`${linkClass} mt-auto pt-4 text-[0.8rem]`}
@@ -138,18 +138,18 @@ function AchievementList({ items, listClassName = '' }) {
     <Subsection
       title="Achievements"
       description="Recognitions and milestones."
-      listClassName={`grid gap-4 ${listClassName}`}
+      listClassName={`grid grid-cols-1 gap-4 ${listClassName}`}
     >
       {items.map((item, index) => (
-        <li key={`${item.title}-${index}`} className={`${cardClass} p-5`}>
+        <li key={`${item.title}-${index}`} className={`${cardClass} min-w-0 p-5`}>
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <h4 className="text-[0.98rem] font-semibold leading-relaxed">{item.title}</h4>
+            <h4 className="min-w-0 text-[0.98rem] font-semibold leading-relaxed [overflow-wrap:anywhere]">{item.title}</h4>
             {item.year === null ? null : (
-              <span className="text-[0.78rem] tabular-nums text-subtle">{item.year}</span>
+              <span className="shrink-0 text-[0.78rem] tabular-nums text-subtle">{item.year}</span>
             )}
           </div>
           {item.description ? (
-            <p className="mt-1.5 max-w-[62ch] text-[0.86rem] leading-relaxed text-muted">
+            <p className="mt-1.5 max-w-[62ch] text-[0.86rem] leading-relaxed text-muted [overflow-wrap:anywhere]">
               {item.description}
             </p>
           ) : null}
@@ -224,7 +224,7 @@ export default function Background() {
           {hasEducation ? <EducationList items={education} /> : null}
 
           {hasAwards ? (
-            <div className="space-y-10">
+            <div className="min-w-0 space-y-10">
               {hasCertifications ? (
                 <CertificationList
                   items={certifications}

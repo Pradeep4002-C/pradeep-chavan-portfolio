@@ -4,6 +4,7 @@ import { usePortfolio } from '../PortfolioContext.jsx';
 import Arrow from '../components/Arrow.jsx';
 import Button from '../components/Button.jsx';
 import Container from '../components/Container.jsx';
+import { focusFirstError } from '../components/formFocus.js';
 
 const EMPTY_FORM = {
   name: '',
@@ -104,13 +105,8 @@ export default function Contact() {
     };
   }, []);
 
-  function focusFirstError(errors) {
-    const firstField = KNOWN_FIELDS.find((field) => errors[field]);
-    if (firstField) {
-      // Focus after React has committed the error text and aria-describedby so
-      // assistive technology announces the message with the field.
-      window.requestAnimationFrame(() => fieldRefs[firstField].current?.focus());
-    }
+  function focusFirstInvalidField(errors) {
+    focusFirstError(errors, KNOWN_FIELDS, (field) => fieldRefs[field].current);
   }
 
   function handleChange(event) {
@@ -144,7 +140,7 @@ export default function Contact() {
       setFieldErrors(errors);
       setStatus('error');
       setStatusMessage('Please check the highlighted fields and try again.');
-      focusFirstError(errors);
+      focusFirstInvalidField(errors);
       return;
     }
 
@@ -203,7 +199,7 @@ export default function Contact() {
 
       if (Object.keys(serverFields).length > 0) {
         setStatusMessage('Please check the highlighted fields and try again.');
-        focusFirstError(serverFields);
+        focusFirstInvalidField(serverFields);
       } else if (error?.code === 'NETWORK_ERROR' || error?.code === 'HTTP_ERROR') {
         setStatusMessage(
           'Could not reach the contact service. Check your connection and try again.',
@@ -239,7 +235,7 @@ export default function Contact() {
         </p>
         <h2
           id="contact-title"
-          className="mt-5 text-[clamp(3rem,6vw,5.5rem)] font-medium leading-none tracking-tighter"
+          className="mt-5 text-[clamp(3rem,6vw,5.5rem)] font-medium leading-none tracking-tighter [overflow-wrap:anywhere]"
         >
           Let&rsquo;s build something <span className="text-[#b8abff]">useful.</span>
         </h2>
@@ -247,7 +243,7 @@ export default function Contact() {
         <div className="mt-8 grid gap-10 border-t border-white/15 pt-6 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] lg:gap-16">
           <div className="flex flex-col justify-between gap-8">
             <div>
-              <p className="max-w-[420px] text-[0.92rem] leading-relaxed text-night-soft">
+              <p className="max-w-[420px] text-[0.92rem] leading-relaxed text-night-soft [overflow-wrap:anywhere]">
                 I&rsquo;m always glad to connect about software, projects, and opportunities to
                 learn by building.
               </p>
@@ -259,7 +255,7 @@ export default function Contact() {
                   {profile.email} <Arrow />
                 </a>
                 {profile.location ? (
-                  <p className="text-[0.8rem] text-night-soft/80">Based in {profile.location}</p>
+                  <p className="text-[0.8rem] text-night-soft/80 [overflow-wrap:anywhere]">Based in {profile.location}</p>
                 ) : null}
               </div>
             </div>
@@ -419,7 +415,7 @@ export default function Contact() {
             </div>
 
             <div
-              className="mt-4 min-h-[1.25rem] text-[0.8rem] leading-relaxed"
+              className="mt-4 min-h-[1.25rem] text-[0.8rem] leading-relaxed [overflow-wrap:anywhere]"
               role="status"
               aria-live="polite"
               aria-atomic="true"

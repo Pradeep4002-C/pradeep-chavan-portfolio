@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import Button from '../components/Button.jsx';
 import WorkflowArtwork from '../components/WorkflowArtwork.jsx';
+import { ConfirmDialog, fieldErrorClass, hintClass, inputClass, labelClass } from './AdminUi.jsx';
 import {
   PROJECT_LIMITS,
   WORKFLOW_STEP_TYPES,
@@ -7,7 +9,6 @@ import {
   moveWorkflowStep,
   removeWorkflowStep,
 } from './projectForm.js';
-import { fieldErrorClass, hintClass, inputClass, labelClass } from './AdminUi.jsx';
 
 function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
   const baseId = `project-workflow-step-${step.id}`;
@@ -32,7 +33,7 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
             onClick={() => onMove(index, -1)}
             disabled={index === 0}
             aria-label={`Move step ${index + 1} up`}
-            className="inline-flex min-h-[34px] items-center rounded-full border border-line-strong px-3 text-xs font-semibold text-ink transition-ui hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-[44px] items-center rounded-full border border-line-strong px-3 text-xs font-semibold text-ink transition-ui hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
           >
             Move up
           </button>
@@ -41,7 +42,7 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
             onClick={() => onMove(index, 1)}
             disabled={index === total - 1}
             aria-label={`Move step ${index + 1} down`}
-            className="inline-flex min-h-[34px] items-center rounded-full border border-line-strong px-3 text-xs font-semibold text-ink transition-ui hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-[44px] items-center rounded-full border border-line-strong px-3 text-xs font-semibold text-ink transition-ui hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
           >
             Move down
           </button>
@@ -49,7 +50,7 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
             type="button"
             onClick={() => onRemove(index)}
             aria-label={`Remove step ${index + 1}`}
-            className="inline-flex min-h-[34px] items-center rounded-full border border-[#e0a9a3] px-3 text-xs font-semibold text-[#8f1d15] transition-ui hover:border-[#8f1d15] hover:bg-[#fdf1f0]"
+            className="inline-flex min-h-[44px] items-center rounded-full border border-[#e0a9a3] px-3 text-xs font-semibold text-[#8f1d15] transition-ui hover:border-[#8f1d15] hover:bg-[#fdf1f0]"
           >
             Remove
           </button>
@@ -113,7 +114,9 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
  * values; the renderer decides the layout, colours, arrows, and glyphs.
  */
 export default function WorkflowStepBuilder({ steps, onChange, error }) {
+  const [removeTargetId, setRemoveTargetId] = useState(null);
   const atLimit = steps.length >= PROJECT_LIMITS.workflowMaxSteps;
+  const removeTarget = steps.find((step) => step.id === removeTargetId) ?? null;
 
   function updateStep(index, nextStep) {
     onChange(steps.map((step, stepIndex) => (stepIndex === index ? nextStep : step)));
@@ -123,6 +126,32 @@ export default function WorkflowStepBuilder({ steps, onChange, error }) {
     if (!atLimit) {
       onChange([...steps, createWorkflowStep()]);
     }
+  }
+
+  function requestRemoveStep(index) {
+    const step = steps[index];
+    if (!step) {
+      return;
+    }
+
+    // Removing an untouched row is an ordinary editor action. Removing typed
+    // copy is destructive, so it asks first; the project page's route blocker
+    // then protects the rest of the draft.
+    if (step.title.trim() || step.description.trim()) {
+      setRemoveTargetId(step.id);
+      return;
+    }
+
+    onChange(removeWorkflowStep(steps, index));
+  }
+
+  function confirmRemoveStep() {
+    const index = steps.findIndex((step) => step.id === removeTargetId);
+    setRemoveTargetId(null);
+    if (index === -1) {
+      return;
+    }
+    onChange(removeWorkflowStep(steps, index));
   }
 
   return (
@@ -177,7 +206,7 @@ export default function WorkflowStepBuilder({ steps, onChange, error }) {
               index={index}
               total={steps.length}
               onChange={updateStep}
-              onRemove={(stepIndex) => onChange(removeWorkflowStep(steps, stepIndex))}
+              onRemove={requestRemoveStep}
               onMove={(stepIndex, direction) =>
                 onChange(moveWorkflowStep(steps, stepIndex, direction))
               }
@@ -209,6 +238,20 @@ export default function WorkflowStepBuilder({ steps, onChange, error }) {
           )}
         </div>
       </section>
+
+      {removeTarget ? (
+        <ConfirmDialog
+          title="Remove this workflow step?"
+          message={`“${
+            removeTarget.title.trim() || 'Untitled step'
+          }” will be removed from this project draft. You can still cancel or discard your changes before saving.`}
+          confirmLabel="Remove step"
+          busyLabel="Removing…"
+          busy={false}
+          onCancel={() => setRemoveTargetId(null)}
+          onConfirm={confirmRemoveStep}
+        />
+      ) : null}
     </div>
   );
 }

@@ -24,7 +24,7 @@ function liveDemoHref(project) {
 /* Both project actions keep the 48px ergonomic target and the shared focus
    treatment explicit at the call site, independent of Button's own defaults. */
 const actionClass =
-  'self-start min-h-[48px] min-w-[48px] outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2';
+  'max-w-full self-start min-h-[48px] min-w-[48px] outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 [overflow-wrap:anywhere]';
 
 /* A stored description is one field, but an administrator may write several
    paragraphs in it separated by a blank line. Splitting there keeps a long
@@ -47,14 +47,14 @@ function ProjectCopy({ project, featured = false }) {
   const demoHref = liveDemoHref(project);
   return (
     <>
-      <p className="text-kicker font-bold uppercase tracking-[0.12em] text-subtle">
+      <p className="text-kicker font-bold uppercase tracking-[0.12em] text-subtle [overflow-wrap:anywhere]">
         <span className="text-accent">{project.number}</span>
         <span aria-hidden="true"> / </span>
         {project.category}
       </p>
 
       <h3
-        className={`mt-2.5 font-medium leading-tight tracking-[-0.05em] ${
+        className={`mt-2.5 font-medium leading-tight tracking-[-0.05em] [overflow-wrap:anywhere] ${
           featured ? 'text-title' : 'text-[clamp(1.3rem,1.9vw,1.65rem)]'
         }`}
       >
@@ -62,7 +62,7 @@ function ProjectCopy({ project, featured = false }) {
       </h3>
 
       <p
-        className={`mt-3 font-medium leading-snug text-ink ${
+        className={`mt-3 font-medium leading-snug text-ink [overflow-wrap:anywhere] ${
           featured ? 'text-[1.05rem] sm:text-[1.15rem]' : 'text-[0.98rem]'
         }`}
       >
@@ -72,7 +72,7 @@ function ProjectCopy({ project, featured = false }) {
       {paragraphs.length > 0 ? (
         <div className="mt-2.5 max-w-[600px] space-y-2.5">
           {paragraphs.map((paragraph, index) => (
-            <p key={index} className="text-[0.95rem] leading-relaxed text-muted">
+            <p key={index} className="text-[0.95rem] leading-relaxed text-muted [overflow-wrap:anywhere]">
               {paragraph}
             </p>
           ))}
