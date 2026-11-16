@@ -5,9 +5,14 @@ import { hasSkillGroups } from './skillsContent.js';
 
 /* Every Bento cell shares the same surface, border, radius, and shadow. The
    entrance is a native @starting-style transition: the card starts faded and
-   slightly lower, then eases into place without any animation library. */
+   slightly lower, then eases into place without any animation library.
+
+   The hover treatment mirrors the project cards: a 2px lift, a stronger ink
+   border, and one shadow step on desktop pointer devices. Motion is gated
+   behind `motion-safe`; the hover delay override keeps the staggered entrance
+   delay from postponing the lift. */
 const cellBaseClass =
-  'flex min-h-[144px] flex-col rounded-2xl border border-line-strong bg-surface p-6 shadow-sm transition-all duration-700 ease-out starting:opacity-0 starting:translate-y-4';
+  'flex min-h-[144px] flex-col rounded-2xl border border-line-strong bg-surface p-6 shadow-sm transition-all duration-200 ease-out starting:opacity-0 starting:translate-y-4 md:motion-safe:hover:-translate-y-0.5 md:hover:border-ink/30 md:hover:shadow-md md:hover:delay-0!';
 
 /**
  * Desktop Bento footprints for the skill groups. Every card receives half of

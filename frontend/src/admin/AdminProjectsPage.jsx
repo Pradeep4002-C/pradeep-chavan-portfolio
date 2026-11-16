@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import { deleteProject, fetchProjects, updateProject } from './adminApi.js';
@@ -41,6 +41,8 @@ export default function AdminProjectsPage() {
   const [notice, setNotice] = useState(location.state?.notice ?? null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  // A ref check closes the same-tick window before `busyId` disables buttons.
+  const actionRef = useRef(false);
 
   // The editor returns a one-time success message through router state. Clear
   // the state after reading it so a later refresh does not repeat old news.
@@ -91,9 +93,10 @@ export default function AdminProjectsPage() {
   }
 
   async function handleTogglePublished(project) {
-    if (busyId) {
+    if (actionRef.current || busyId) {
       return;
     }
+    actionRef.current = true;
     setBusyId(project.id);
     setNotice(null);
     try {
@@ -115,15 +118,17 @@ export default function AdminProjectsPage() {
         message: describeError(requestError, 'We could not change the published state.'),
       });
     } finally {
+      actionRef.current = false;
       setBusyId(null);
     }
   }
 
   async function handleDelete() {
     const project = deleteTarget;
-    if (!project || busyId) {
+    if (!project || actionRef.current || busyId) {
       return;
     }
+    actionRef.current = true;
     setBusyId(project.id);
     try {
       await deleteProject(project.id);
@@ -141,6 +146,7 @@ export default function AdminProjectsPage() {
         message: describeError(requestError, 'We could not delete that project.'),
       });
     } finally {
+      actionRef.current = false;
       setBusyId(null);
     }
   }

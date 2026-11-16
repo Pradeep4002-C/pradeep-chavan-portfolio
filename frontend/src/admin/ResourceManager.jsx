@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBlocker } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import { focusFirstError } from '../components/formFocus.js';
-import { useAdminAuth } from './AdminAuthContext.jsx';
+import { ADMIN_AUTH_STATUS, useAdminAuth } from './AdminAuthContext.jsx';
+import { clearDraft, saveDraft, takeDraft } from './draftStorage.js';
 import {
   AdminErrorState,
   AdminLoading,
@@ -94,25 +95,98 @@ function FieldControl({ config, field, value, error, onChange }) {
 }
 
 /** Create/edit dialog for one record of a collection. */
-function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthorized }) {
+function ResourceFormDialog({
+  config,
+  mode,
+  item,
+  restoreDraft = false,
+  onClose,
+  onSaved,
+  onUnauthorized,
+}) {
   const isEdit = mode === 'edit';
+  const { status: authStatus } = useAdminAuth();
   const initialValues = useMemo(
     () => (isEdit ? valuesFromItem(config.fields, item) : emptyValues(config.fields)),
     [config, isEdit, item],
   );
+  const draftKey = `resource:${config.key}:${isEdit ? item.id : 'new'}`;
+  const pointerKey = `resource:${config.key}:pending`;
 
   const [values, setValues] = useState(initialValues);
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [restored, setRestored] = useState(false);
+  // Guards against two clicks in the same tick, before `submitting` renders.
+  const submittingRef = useRef(false);
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  const allowNavigation = useRef(false);
 
   const dirty = useMemo(
     () => JSON.stringify(values) !== JSON.stringify(initialValues),
     [values, initialValues],
   );
 
-  const blocker = useBlocker(() => dirty && !submitting);
+  const persistDraft = useCallback(() => {
+    saveDraft(draftKey, { values: { ...valuesRef.current } });
+    saveDraft(pointerKey, {
+      mode,
+      itemId: isEdit ? item.id : null,
+      draftKey,
+    });
+  }, [draftKey, isEdit, item, mode, pointerKey]);
+
+  const blocker = useBlocker(
+    () =>
+      dirty &&
+      !submitting &&
+      !allowNavigation.current &&
+      authStatus === ADMIN_AUTH_STATUS.authenticated,
+  );
+
+  // A 401 or another tab's sign-out must preserve the open dialog's draft
+  // before the protected route redirects to the sign-in page.
+  useEffect(() => {
+    if (authStatus === ADMIN_AUTH_STATUS.unauthenticated && dirty) {
+      persistDraft();
+    }
+  }, [authStatus, dirty, persistDraft]);
+
+  // Save on every edit. A cross-tab sign-out can unmount the protected route
+  // before the auth-transition effect runs, so the draft must already be stored.
+  useEffect(() => {
+    if (dirty) {
+      persistDraft();
+    }
+  }, [dirty, values, persistDraft]);
+
+  function discardAndClose() {
+    clearDraft(draftKey);
+    clearDraft(pointerKey);
+    setDiscardOpen(false);
+    onClose();
+  }
+
+  function discardAndLeave() {
+    clearDraft(draftKey);
+    clearDraft(pointerKey);
+    blocker.proceed?.();
+  }
+
+  useEffect(() => {
+    if (!restoreDraft) {
+      return;
+    }
+
+    const draft = takeDraft(draftKey);
+    if (draft && draft.values && typeof draft.values === 'object') {
+      setValues({ ...initialValues, ...draft.values });
+      setRestored(true);
+    }
+  }, [draftKey, initialValues, restoreDraft]);
 
   useEffect(() => {
     if (!dirty || submitting) {
@@ -153,7 +227,7 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
 
   async function handleSubmit(event) {
     event.preventDefault();
-    if (submitting) {
+    if (submittingRef.current) {
       return;
     }
 
@@ -165,6 +239,7 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
       return;
     }
 
+    submittingRef.current = true;
     setSubmitting(true);
     setFormError(null);
     try {
@@ -172,13 +247,18 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
       const saved = isEdit
         ? await config.api.update(item.id, payload)
         : await config.api.create(payload);
+      clearDraft(draftKey);
+      clearDraft(pointerKey);
+      allowNavigation.current = true;
       onSaved(saved, mode);
     } catch (error) {
       if (error?.name === 'AbortError') {
         return;
       }
       if (error?.status === 401) {
-        onUnauthorized();
+        persistDraft();
+        allowNavigation.current = true;
+        onUnauthorized('expired');
         return;
       }
       const { mapped, formMessage } = mapServerFields(error?.fields);
@@ -190,6 +270,7 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
         formMessage ?? describeError(error, `We could not save the ${config.singular}. Please try again.`),
       );
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -219,6 +300,14 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
         </div>
 
         <form onSubmit={handleSubmit} noValidate className="px-6 py-5">
+          {restored ? (
+            <div className="mb-5">
+              <Notice tone="success" onDismiss={() => setRestored(false)}>
+                We restored the unsaved draft from before your session ended.
+              </Notice>
+            </div>
+          ) : null}
+
           {formError ? (
             <div className="mb-5">
               <Notice tone="error">{formError}</Notice>
@@ -275,10 +364,7 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
           busyLabel="Discarding…"
           busy={false}
           onCancel={() => setDiscardOpen(false)}
-          onConfirm={() => {
-            setDiscardOpen(false);
-            onClose();
-          }}
+          onConfirm={discardAndClose}
         />
       ) : null}
 
@@ -290,7 +376,7 @@ function ResourceFormDialog({ config, mode, item, onClose, onSaved, onUnauthoriz
           busyLabel="Discarding…"
           busy={false}
           onCancel={() => blocker.reset?.()}
-          onConfirm={() => blocker.proceed?.()}
+          onConfirm={discardAndLeave}
         />
       ) : null}
     </>
@@ -310,6 +396,11 @@ export default function ResourceManager({ config }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [movingId, setMovingId] = useState(null);
+  // One mutation at a time for the whole list. State checks alone admit a
+  // second request from a click dispatched before React re-renders.
+  const actionRef = useRef(false);
+  // A draft pointer left by a 401 is consumed once, after the list is ready.
+  const restoreAttemptedRef = useRef(false);
 
   const load = useCallback(
     async (signal, { silent = false } = {}) => {
@@ -346,13 +437,41 @@ export default function ResourceManager({ config }) {
     return () => controller.abort();
   }, [load]);
 
+  // After a re-login the manager remounts with the dialog closed. A pointer in
+  // sessionStorage reopens the same create/edit form with the preserved values.
+  useEffect(() => {
+    if (status !== 'ready' || restoreAttemptedRef.current || dialog) {
+      return;
+    }
+    restoreAttemptedRef.current = true;
+
+    const pending = takeDraft(`resource:${config.key}:pending`);
+    if (!pending || typeof pending !== 'object') {
+      return;
+    }
+
+    if (pending.mode === 'edit') {
+      const item = items.find((entry) => entry.id === pending.itemId);
+      if (!item) {
+        if (typeof pending.draftKey === 'string') {
+          clearDraft(pending.draftKey);
+        }
+        return;
+      }
+      setDialog({ mode: 'edit', item, restoreDraft: true });
+      return;
+    }
+
+    setDialog({ mode: 'create', restoreDraft: true });
+  }, [config.key, dialog, items, status]);
+
   function reload() {
     setStatus('loading');
     load();
   }
 
   async function handleMove(item, direction) {
-    if (movingId || busyId) {
+    if (actionRef.current || movingId || busyId) {
       return;
     }
 
@@ -362,6 +481,7 @@ export default function ResourceManager({ config }) {
       return;
     }
 
+    actionRef.current = true;
     setMovingId(item.id);
     setNotice(null);
     try {
@@ -388,16 +508,18 @@ export default function ResourceManager({ config }) {
         message: describeError(requestError, `We could not reorder the ${config.plural}.`),
       });
     } finally {
+      actionRef.current = false;
       setMovingId(null);
     }
   }
 
   async function handleDelete() {
     const target = deleteTarget;
-    if (!target || busyId) {
+    if (!target || actionRef.current || busyId) {
       return;
     }
 
+    actionRef.current = true;
     setBusyId(target.id);
     try {
       await config.api.remove(target.id);
@@ -415,6 +537,7 @@ export default function ResourceManager({ config }) {
         message: describeError(requestError, `We could not delete that ${config.singular}.`),
       });
     } finally {
+      actionRef.current = false;
       setBusyId(null);
     }
   }
@@ -551,6 +674,7 @@ export default function ResourceManager({ config }) {
           config={config}
           mode={dialog.mode}
           item={dialog.item}
+          restoreDraft={Boolean(dialog.restoreDraft)}
           onClose={() => setDialog(null)}
           onSaved={handleSaved}
           onUnauthorized={markUnauthenticated}

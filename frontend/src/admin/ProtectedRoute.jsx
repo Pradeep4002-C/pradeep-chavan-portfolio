@@ -8,7 +8,7 @@ import { AdminErrorState, AdminLoading, describeError } from './AdminUi.jsx';
  * on the server, so bypassing this guard grants no data.
  */
 export default function ProtectedRoute() {
-  const { status, error, checkSession } = useAdminAuth();
+  const { status, error, checkSession, signOutReason } = useAdminAuth();
   const location = useLocation();
 
   if (status === ADMIN_AUTH_STATUS.loading) {
@@ -27,7 +27,14 @@ export default function ProtectedRoute() {
 
   if (status === ADMIN_AUTH_STATUS.unauthenticated) {
     // Remember where the administrator wanted to go so login can return there.
-    return <Navigate to="/admin/login" replace state={{ from: location }} />;
+    // The reason drives the session-expired / signed-out-in-another-tab notice.
+    return (
+      <Navigate
+        to="/admin/login"
+        replace
+        state={{ from: location, reason: signOutReason }}
+      />
+    );
   }
 
   return <Outlet />;

@@ -69,6 +69,21 @@ export function PortfolioProvider({ children }) {
     };
   }, [retry]);
 
+  /* A page restored from the back/forward cache keeps its old React state and
+     never remounts, so it would show portfolio data captured before an admin
+     edit. `max-age=0, must-revalidate` only helps requests the browser actually
+     makes; a restored page makes none. Revalidate once when it is persisted. */
+  useEffect(() => {
+    function handlePageShow(event) {
+      if (event.persisted) {
+        retry();
+      }
+    }
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, [retry]);
+
   return (
     <PortfolioContext.Provider value={{ ...content, status, retry }}>
       {children}

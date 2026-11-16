@@ -139,14 +139,10 @@ const fields = {
     .max(PROJECT_LIMITS.urlMax, `Repository URL must be ${PROJECT_LIMITS.urlMax} characters or fewer.`)
     .refine(isHttpUrl, 'Repository URL must be a valid http or https URL.'),
   demoUrl: z
-    .union([
-      z.literal(''),
-      z
-        .string({ error: 'Demo URL must be text.' })
-        .trim()
-        .max(PROJECT_LIMITS.urlMax, `Demo URL must be ${PROJECT_LIMITS.urlMax} characters or fewer.`)
-        .refine(isHttpUrl, 'Demo URL must be a valid http or https URL.'),
-    ])
+    .string({ error: 'Demo URL must be text.' })
+    .trim()
+    .max(PROJECT_LIMITS.urlMax, `Demo URL must be ${PROJECT_LIMITS.urlMax} characters or fewer.`)
+    .refine((value) => value === '' || isHttpUrl(value), 'Demo URL must be a valid http or https URL.')
     .optional(),
   featured: z.boolean({ error: 'Featured must be true or false.' }),
   artwork: z

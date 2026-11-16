@@ -3,9 +3,11 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import MenuIcon from '../components/MenuIcon.jsx';
 import { lockBodyScroll } from '../components/bodyScrollLock.js';
+import useDocumentTitle from '../hooks/useDocumentTitle.js';
 import { useAdminAuth } from './AdminAuthContext.jsx';
 import { AdminBrand, AdminLoading, AdminPill, Notice, describeError } from './AdminUi.jsx';
 import InactivityWarningDialog from './InactivityWarningDialog.jsx';
+import { adminDocumentTitle } from './adminTitles.js';
 import { INACTIVITY_TIMEOUT_MINUTES, INACTIVITY_WARNING_SECONDS } from './inactivity.js';
 import { useInactivityLogout } from './useInactivityLogout.js';
 
@@ -63,6 +65,8 @@ export default function AdminLayout() {
   const menuButtonRef = useRef(null);
   const mainRef = useRef(null);
 
+  useDocumentTitle(adminDocumentTitle(location.pathname));
+
   // Lock the page behind the mobile drawer. The shared lock is ref-counted so a
   // dialog opened above the drawer cannot restore background scrolling early.
   useEffect(() => {
@@ -102,10 +106,21 @@ export default function AdminLayout() {
   }, [menuOpen]);
 
   // Browser back/forward and programmatic route changes must never leave the
-  // mobile drawer open over a different dashboard page.
+  // mobile drawer open over a different dashboard page. The router key changes
+  // for same-path history entries too (search/hash), and the popstate listener
+  // covers a history restore that happens before React re-renders.
   useEffect(() => {
     setMenuOpen(false);
-  }, [location.pathname]);
+  }, [location.key, location.pathname]);
+
+  useEffect(() => {
+    function handlePopState() {
+      setMenuOpen(false);
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   function closeMobileMenu() {
     setMenuOpen(false);

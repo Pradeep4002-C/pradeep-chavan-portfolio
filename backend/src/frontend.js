@@ -85,9 +85,10 @@ export function createFrontendRouter({ distDir = FRONTEND_DIST_DIR } = {}) {
       res.setHeader('Cache-Control', REVALIDATE_CACHE);
 
       // The administrator application is private tooling, so keep every admin
-      // URL out of search indexes even though it returns a normal 200 page.
+      // URL out of search indexes and never let crawlers follow links found
+      // there, even though the response is a normal 200 page.
       if (noindex) {
-        res.setHeader('X-Robots-Tag', 'noindex');
+        res.setHeader('X-Robots-Tag', 'noindex, nofollow');
       }
     }
 

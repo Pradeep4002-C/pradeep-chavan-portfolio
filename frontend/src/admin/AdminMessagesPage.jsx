@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Button from '../components/Button.jsx';
 import { deleteMessage, fetchMessages, updateMessage } from './adminApi.js';
 import { useAdminAuth } from './AdminAuthContext.jsx';
@@ -54,6 +54,9 @@ export default function AdminMessagesPage() {
   const [notice, setNotice] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  // Busy state renders on the next tick; this ref stops duplicate requests
+  // from clicks dispatched in the same tick.
+  const actionRef = useRef(false);
 
   const load = useCallback(
     async (signal, { silent = false } = {}) => {
@@ -112,12 +115,13 @@ export default function AdminMessagesPage() {
   }
 
   async function handleToggleVisibility(message) {
-    if (busyId) {
+    if (actionRef.current || busyId) {
       return;
     }
 
     const nextHidden = nextHiddenValue(message);
     const optimistic = { ...message, hidden: nextHidden };
+    actionRef.current = true;
     setBusyId(message.id);
     setNotice(null);
     setData((current) => applyMessageUpdate(current, optimistic));
@@ -141,14 +145,16 @@ export default function AdminMessagesPage() {
         message: describeError(requestError, 'We could not change the message visibility.'),
       });
     } finally {
+      actionRef.current = false;
       setBusyId(null);
     }
   }
 
   async function handleToggleRead(message) {
-    if (busyId) {
+    if (actionRef.current || busyId) {
       return;
     }
+    actionRef.current = true;
     setBusyId(message.id);
     setNotice(null);
     try {
@@ -169,15 +175,17 @@ export default function AdminMessagesPage() {
         message: describeError(requestError, 'We could not change the message status.'),
       });
     } finally {
+      actionRef.current = false;
       setBusyId(null);
     }
   }
 
   async function handleDelete() {
     const target = deleteTarget;
-    if (!target || busyId) {
+    if (!target || actionRef.current || busyId) {
       return;
     }
+    actionRef.current = true;
     setBusyId(target.id);
     try {
       await deleteMessage(target.id);
@@ -195,6 +203,7 @@ export default function AdminMessagesPage() {
         message: describeError(requestError, 'We could not delete that message.'),
       });
     } finally {
+      actionRef.current = false;
       setBusyId(null);
     }
   }

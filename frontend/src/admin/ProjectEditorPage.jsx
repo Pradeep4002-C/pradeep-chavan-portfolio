@@ -4,7 +4,8 @@ import Button from '../components/Button.jsx';
 import { focusFirstError } from '../components/formFocus.js';
 import ProjectArtwork from '../components/ProjectArtwork.jsx';
 import { createProject, fetchProject, updateProject } from './adminApi.js';
-import { useAdminAuth } from './AdminAuthContext.jsx';
+import { ADMIN_AUTH_STATUS, useAdminAuth } from './AdminAuthContext.jsx';
+import { clearDraft, saveDraft, takeDraft } from './draftStorage.js';
 import {
   AdminErrorState,
   AdminLoading,
@@ -112,7 +113,8 @@ export default function ProjectEditorPage() {
   const { id } = useParams();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
-  const { markUnauthenticated } = useAdminAuth();
+  const { markUnauthenticated, status: authStatus } = useAdminAuth();
+  const draftKey = isEdit ? `project:${id}` : 'project:new';
 
   const [values, setValues] = useState(emptyProjectValues);
   const [initialValues, setInitialValues] = useState(emptyProjectValues);
@@ -121,7 +123,16 @@ export default function ProjectEditorPage() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [restoredDraft, setRestoredDraft] = useState(false);
   const allowNavigation = useRef(false);
+  // State updates are asynchronous; this ref blocks duplicate same-tick submits.
+  const submittingRef = useRef(false);
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+
+  const persistDraft = useCallback(() => {
+    saveDraft(draftKey, { values: { ...valuesRef.current } });
+  }, [draftKey]);
 
   const dirty = useMemo(
     () => JSON.stringify(values) !== JSON.stringify(initialValues),
@@ -129,8 +140,33 @@ export default function ProjectEditorPage() {
   );
 
   const blocker = useBlocker(
-    () => dirty && !allowNavigation.current && !submitting,
+    () =>
+      dirty &&
+      !allowNavigation.current &&
+      !submitting &&
+      authStatus === ADMIN_AUTH_STATUS.authenticated,
   );
+
+  // Preserve typed work when the session ends for any reason, including a
+  // sign-out broadcast from another tab, before the redirect unmounts us.
+  useEffect(() => {
+    if (authStatus === ADMIN_AUTH_STATUS.unauthenticated && dirty) {
+      persistDraft();
+    }
+  }, [authStatus, dirty, persistDraft]);
+
+  // Save on every edit so a cross-tab sign-out cannot unmount the editor
+  // before an auth-transition effect has had a chance to run.
+  useEffect(() => {
+    if (dirty) {
+      persistDraft();
+    }
+  }, [dirty, values, persistDraft]);
+
+  function discardAndLeave() {
+    clearDraft(draftKey);
+    blocker.proceed?.();
+  }
 
   useEffect(() => {
     if (!dirty || submitting) {
@@ -148,10 +184,19 @@ export default function ProjectEditorPage() {
 
   const load = useCallback(
     async (signal) => {
+      function withDraft(baseValues) {
+        const draft = takeDraft(draftKey);
+        if (!draft || !draft.values || typeof draft.values !== 'object') {
+          return baseValues;
+        }
+        setRestoredDraft(true);
+        return { ...baseValues, ...draft.values };
+      }
+
       if (!isEdit) {
-        const next = emptyProjectValues();
+        const next = withDraft(emptyProjectValues());
         setValues(next);
-        setInitialValues(next);
+        setInitialValues(emptyProjectValues());
         setStatus('ready');
         setLoadError(null);
         return;
@@ -159,9 +204,9 @@ export default function ProjectEditorPage() {
 
       try {
         const project = await fetchProject(id, { signal });
-        const next = valuesFromProject(project);
-        setValues(next);
-        setInitialValues(next);
+        const base = valuesFromProject(project);
+        setValues(withDraft(base));
+        setInitialValues(base);
         setStatus('ready');
         setLoadError(null);
       } catch (error) {
@@ -169,14 +214,14 @@ export default function ProjectEditorPage() {
           return;
         }
         if (error?.status === 401) {
-          markUnauthenticated();
+          markUnauthenticated('expired');
           return;
         }
         setStatus('error');
         setLoadError(error);
       }
     },
-    [id, isEdit, markUnauthenticated],
+    [draftKey, id, isEdit, markUnauthenticated],
   );
 
   useEffect(() => {
@@ -197,7 +242,7 @@ export default function ProjectEditorPage() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    if (submitting) {
+    if (submittingRef.current) {
       return;
     }
 
@@ -209,11 +254,13 @@ export default function ProjectEditorPage() {
       return;
     }
 
+    submittingRef.current = true;
     setSubmitting(true);
     setFormError(null);
     try {
       const payload = buildProjectPayload(values);
       const saved = isEdit ? await updateProject(id, payload) : await createProject(payload);
+      clearDraft(draftKey);
       allowNavigation.current = true;
       const savedValues = valuesFromProject(saved);
       setValues(savedValues);
@@ -235,7 +282,9 @@ export default function ProjectEditorPage() {
         return;
       }
       if (error?.status === 401) {
-        markUnauthenticated();
+        persistDraft();
+        allowNavigation.current = true;
+        markUnauthenticated('expired');
         return;
       }
       const { mapped, formMessage } = mapServerFields(error?.fields);
@@ -247,6 +296,7 @@ export default function ProjectEditorPage() {
         formMessage ?? describeError(error, 'We could not save the project. Please try again.'),
       );
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -320,6 +370,14 @@ export default function ProjectEditorPage() {
 
       {status === 'ready' ? (
         <form onSubmit={handleSubmit} noValidate aria-busy={submitting}>
+          {restoredDraft ? (
+            <div className="mb-5">
+              <Notice tone="success" onDismiss={() => setRestoredDraft(false)}>
+                We restored the unsaved draft from before your session ended.
+              </Notice>
+            </div>
+          ) : null}
+
           {formError ? (
             <div className="mb-5">
               <Notice tone="error">{formError}</Notice>
@@ -592,7 +650,7 @@ export default function ProjectEditorPage() {
                 <label className="flex min-h-[44px] cursor-pointer items-center gap-2.5 text-sm font-medium text-ink">
                   <input
                     type="checkbox"
-                    className="size-4 rounded border-line text-accent"
+                    className="size-4 rounded border-line accent-zinc-600 transition-colors focus:outline-none focus:ring-1 focus:ring-zinc-400 focus:border-zinc-400"
                     checked={values.featured}
                     onChange={(event) => update('featured', event.target.checked)}
                     aria-describedby="project-featured-help"
@@ -606,7 +664,7 @@ export default function ProjectEditorPage() {
                 <label className="flex min-h-[44px] cursor-pointer items-center gap-2.5 text-sm font-medium text-ink">
                   <input
                     type="checkbox"
-                    className="size-4 rounded border-line text-accent"
+                    className="size-4 rounded border-line accent-zinc-600 transition-colors focus:outline-none focus:ring-1 focus:ring-zinc-400 focus:border-zinc-400"
                     checked={values.published}
                     onChange={(event) => update('published', event.target.checked)}
                   />
@@ -646,7 +704,7 @@ export default function ProjectEditorPage() {
           busyLabel="Discarding…"
           busy={false}
           onCancel={() => blocker.reset?.()}
-          onConfirm={() => blocker.proceed?.()}
+          onConfirm={discardAndLeave}
         />
       ) : null}
     </div>

@@ -1,8 +1,25 @@
 # Pradeep Chavan — Developer Portfolio
 
-A full-stack portfolio with a public, content-managed site and a private
-administrator dashboard. The React frontend and Express API share one origin in
-production, and all portfolio content is stored in MongoDB.
+A production-ready **MERN** portfolio: MongoDB, Express, React, and Node.js.
+The public site is editorial and content-managed; the administrator dashboard is
+private. The React frontend and Express API share one origin in production, and
+all portfolio content is stored in MongoDB.
+
+### Release highlights
+
+- **Public portfolio:** responsive editorial layout, accessible hash navigation,
+  project case studies, workflow artwork, and a contact form.
+- **Private dashboard:** session-authenticated project, profile, skills,
+  education, certification, achievement, and message management.
+- **Security hardening:** strict request schemas, XSS-safe rendering, Helmet
+  headers, trusted-origin checks, rate limits, Argon2id passwords, and hardened
+  session cookies.
+- **Accessibility:** WCAG 2.2 AA target, keyboard-complete flows, managed dialog
+  focus, reduced-motion support, and contrast-checked design tokens.
+- **Performance:** measured CLS of approximately **0.0001** on the production
+  build at mobile and desktop widths, well below the **0.05** target.
+- **Quality:** nine QA audit gates plus a final UI-polish regression pass.
+  Current suites: **196 frontend + 122 backend = 318 automated tests**.
 
 ## Architecture
 
@@ -284,6 +301,81 @@ neutral fallback illustration rather than another project's drawing. See
 `docs/PROJECT_GUIDE.md` for owner instructions and `docs/ARCHITECTURE.md` for the
 data flow.
 
+## Accessibility and WCAG
+
+The interface targets **WCAG 2.2 AA**. Automated contracts and browser checks
+cover the behaviours that are practical to verify in this repository:
+
+- Semantic `header`, `nav`, `main`, and `footer` landmarks, one page-level `h1`,
+  and a sequential heading outline with no skipped levels.
+- A skip link that moves both scroll position and keyboard focus to `main`.
+- Visible `:focus-visible` rings for every interactive control; the shared public
+  and admin form focus state is one zinc border plus one zinc ring, with no
+  browser-default blue or purple outline.
+- Minimum 48 by 48 pixel targets for navigation and primary actions, with 44
+  pixel targets retained in compact admin controls.
+- Active-section navigation exposed through `aria-current="location"`. The
+  underline indicator belongs only to that link; hover and keyboard focus on a
+  non-active link change text colour but never grow a competing bar.
+- Managed dialogs and drawers: focus moves into the layer, Tab is trapped,
+  Escape closes it, the background becomes inert, and focus returns to the
+  opener. Stacked inactivity and confirmation dialogs release one layer at a
+  time.
+- Form errors connected with `aria-invalid` and `aria-describedby`; asynchronous
+  results announced through `role="status"` or `role="alert"`.
+- A global `prefers-reduced-motion` guard that removes entrance, hover, and
+  smooth-scroll animation while preserving content.
+- Contrast checks for normal text (4.5:1), large text (3:1), status colours, and
+  the dark Contact surface. The darker `accent-strong` token is used where the
+  brand accent alone would miss AA on the soft accent background.
+
+These checks do not replace a manual screen-reader, zoom, or assistive-technology
+audit. Treat WCAG 2.2 AA as the engineering target and verify it with real users
+and devices before making a compliance claim.
+
+## Performance and Core Web Vitals
+
+The release was measured against the production build in Chromium using a
+`PerformanceObserver` for layout shifts. API responses were delayed so loading
+states were exercised rather than only the settled page.
+
+| Check | Target | Measured |
+| --- | --- | --- |
+| Cumulative Layout Shift, 375 px | `< 0.05` | **0.000147** |
+| Cumulative Layout Shift, 1440 px | `< 0.05` | **0.000100** |
+| Horizontal overflow, 280 / 375 / 1440 / 2560 px | None | **None** |
+
+The editorial background mesh uses only painted gradients with fixed
+attachment, so it creates no layout boxes and no shift. The only observed shift
+source was the pre-existing hero typing cursor, at roughly 0.0001 total. Build
+assets are fingerprinted and immutable, the HTML entry is revalidated, and the
+public portfolio API is revalidated so content edits appear on the next load.
+
+LCP and INP should still be validated with field data or Lighthouse after a real
+deployment; this README records only the locally verified CLS and overflow
+results.
+
+## Nine-stage QA methodology
+
+The release was hardened through nine QA gates. Each gate combines automated
+regression contracts with targeted browser or production-serving checks.
+
+| Gate | Focus | Representative coverage |
+| --- | --- | --- |
+| 1. Static integrity | Build health, unsafe DOM sinks, route and configuration contracts | Source scan for `dangerouslySetInnerHTML`, `innerHTML`, `eval`, and `Function`; Vite production build |
+| 2. Public experience | Content, responsive layout, navigation, anchors, and fallback states | `public-page`, `responsive-layout`, `portfolio-content` |
+| 3. Admin authentication | Login, session rotation, expiry warning, cross-tab logout, protected routes | `admin-login-focus`, `inactivity`, `inactivity-dialog`, `admin-api` |
+| 4. Content administration | CRUD flows, validation, dirty-state guards, draft preservation, destructive confirmations | `admin-profile`, `project-form`, `resource-form`, `resource-manager-discard` |
+| 5. Production serving and SEO | SPA 404s, JSON API fallbacks, robots policy, private `noindex`, cache headers | `production-serving`, `qa9-security` |
+| 6. Resilience | Slow or failed requests, duplicate submits, in-flight guards, contact failures | `contact-failure`, `in-flight-guards`, `route-error-boundary` |
+| 7. Accessibility | Landmarks, heading order, focus management, state attributes, contrast, reduced motion | `accessibility-contracts`, `qa9-contracts`, dialog suites |
+| 8. Data normalization and URL safety | Trimming, email normalization, strict objects, `javascript:` / `data:` / `vbscript:` rejection | `qa8-validation`, `qa8-contracts` |
+| 9. Security and release | CSP and security headers, cookie attributes, XSS inert rendering, test/build/CRLF checks, health verification | `qa9-security`, `qa9-contracts`, live Chromium and production health checks |
+
+A final **UI-polish regression pass** in `ui-polish-10.test.js` protects the
+exclusive active-nav indicator, the single zinc focus treatment, the contact
+copy-email interaction, motion-safe card polish, and the fixed editorial mesh.
+
 ## Tests
 
 Run both suites from the repository root:
@@ -298,6 +390,20 @@ Run them separately:
 npm run test:server
 npm run test:frontend
 ```
+
+Current release verification:
+
+| Suite | Tests | Result |
+| --- | --- | --- |
+| Frontend (`frontend/`) | 196 | **Passed** |
+| Backend (`backend/`) | 122 | **Passed** |
+| Total | **318** | **318/318 passed** |
+
+The frontend suite uses Node's test runner with jsdom and Vite's SSR module
+loader, so component markup, focus behaviour, and API-client contracts are
+exercised without a browser. The backend suite uses Node's runner with
+concurrency 1 and integration routes against an isolated test database. Browser
+and production checks are documented in the QA gates above.
 
 The API integration tests need MongoDB. By default they use a disposable
 database whose name ends in `_test`; the suite refuses to run against the real
@@ -409,27 +515,72 @@ npm start
 Use only safe, verified deployment commands. A healthy local build does not
 prove that a remote deployment succeeded.
 
-## Security configuration
+## Security hardening
 
-- Helmet security headers are enabled, and `x-powered-by` is disabled.
-- Request bodies are JSON-only and limited to 32 KB.
-- Administrator routes require both a valid session and authorization.
-- State-changing authenticated requests require an allowed origin.
-- Passwords are hashed with Argon2id; password hashes are never returned by the
-  API.
-- Sessions are stored in MongoDB and use secure, HTTP-only cookies in
-  production.
-- Login and contact endpoints are rate limited.
-- Login responses are generic, and account lockout details are not exposed. An
-  owner-only CLI (`npm run admin:unlock`) clears a lockout without changing
-  credentials or sessions.
-- Authentication and administrator responses are not cacheable.
-- Public portfolio data is revalidated, so deleted or unpublished records do
-  not remain visible indefinitely.
-- Zod validates request payloads; public responses use explicit field
-  projections so administrator data, messages, hashes, and internal IDs are not
+### XSS-safe rendering and input validation
+
+- All content is rendered through React text nodes. Application source contains no
+  `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `document.write`, `eval`,
+  or `new Function`.
+- Regression tests feed `<script>`, `<img onerror>`, and `<svg onload>` payloads
+  through public content and administrator message bodies, then assert that no
+  script, image, or inline event handler is created. Hostile values remain inert
+  text.
+- Link fields are validated on both the client and the server. Only absolute
+  `http:` and `https:` URLs are accepted; `javascript:`, `data:`, and `vbscript:`
+  schemes are rejected.
+- Zod request schemas are strict: unknown keys, mass-assignment fields such as
+  `_id` or `__v`, and unsupported nested objects are rejected. Scalar text is
+  trimmed before validation and storage.
+- Public responses use explicit field projections, so password hashes,
+  administrator records, contact messages, and internal fields are never
   serialized.
-- `.env` files are ignored. `.env.example` contains only placeholders.
+
+### Headers and transport
+
+- Helmet is enabled and `x-powered-by` is disabled.
+- Responses include a Content Security Policy with
+  `frame-ancestors 'self'`, plus `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: SAMEORIGIN`, and `Referrer-Policy: no-referrer`.
+- JSON bodies are limited to 32 KB and the API only accepts JSON.
+- `/api/*` and `/admin/*` are marked `noindex, nofollow`; the public portfolio
+  stays indexable.
+- Authentication and administrator responses use `Cache-Control: no-store` and
+  `Vary: Cookie`. Public content is revalidated so deleted or unpublished
+  records do not remain visible indefinitely.
+
+### Authentication and sessions
+
+- Administrator routes require both a valid MongoDB-backed session and
+  server-side authorization.
+- Passwords are hashed with Argon2id. Password hashes are never returned by the
+  API, and unknown-account logins perform a dummy verification to reduce timing
+  differences.
+- Sessions use the `pradeep.sid` cookie with `HttpOnly`, `SameSite=Lax`, and
+  `Secure` in production. The session ID is regenerated after successful login,
+  sessions expire after approximately eight hours, and no in-memory store is
+  used as a fallback.
+- State-changing authentication and administrator requests pass a
+  trusted-origin check. Wildcard CORS is not used.
+- Login is limited to five failed attempts per IP per fifteen minutes. Ten
+  consecutive failures lock the account for fifteen minutes; generic responses
+  do not reveal which condition failed. `npm run admin:unlock` clears a lockout
+  without changing credentials or sessions.
+
+### Abuse and data protection
+
+- Contact submissions are limited to five per IP per hour, with a hidden
+  honeypot and a minimum form age. Suppressed spam receives the same response as
+  an accepted message and is not stored.
+- Request metadata, IP addresses, and anti-spam fields are never written to the
+  contact collection.
+- The logger redacts common secret fields and scrubs MongoDB URIs, Argon2 hashes,
+  bearer tokens, cookies, and password assignments. Callers must still avoid
+  passing private content.
+- `.env` files are ignored. `.env.example` contains only placeholders, and the
+  environment loader rejects short, placeholder, or malformed session secrets.
+- Set `TRUST_PROXY=true` only behind exactly one trusted reverse proxy; otherwise
+  rate-limit identities are spoofable.
 
 ## Known limitations and troubleshooting
 

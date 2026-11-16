@@ -8,7 +8,7 @@ import { useDialogFocus } from './dialogFocus.js';
    part of the same site without copying a generic dashboard theme. */
 
 export const inputClass =
-  'min-h-[44px] w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink transition-ui placeholder:text-subtle focus:border-accent';
+  'min-h-[44px] w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink transition-colors placeholder:text-subtle focus:outline-none focus:ring-1 focus:ring-zinc-400 focus:border-zinc-400';
 
 export const labelClass = 'mb-1.5 block text-[0.8rem] font-semibold text-ink';
 

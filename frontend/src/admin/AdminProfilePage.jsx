@@ -3,7 +3,8 @@ import { useBlocker } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import { focusFirstError } from '../components/formFocus.js';
 import { fetchProfile, updateProfile } from './adminApi.js';
-import { useAdminAuth } from './AdminAuthContext.jsx';
+import { ADMIN_AUTH_STATUS, useAdminAuth } from './AdminAuthContext.jsx';
+import { clearDraft, saveDraft, takeDraft } from './draftStorage.js';
 import {
   AdminErrorState,
   AdminLoading,
@@ -21,6 +22,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Mirrors the public portfolio's asset-path rule: relative, no escaping.
 const ASSET_PATH_PATTERN = /^(?!\/)(?!.*\.\.)[A-Za-z0-9._~/-]+$/;
 const MAX_PARAGRAPHS = 20;
+const PROFILE_DRAFT_KEY = 'profile';
 
 export const UNSAVED_PROFILE_MESSAGE =
   'You have unsaved changes. Are you sure you want to discard them?';
@@ -103,7 +105,7 @@ function valuesFromProfile(profile) {
   return values;
 }
 
-function validate(values, paragraphs) {
+export function validateProfile(values, paragraphs) {
   const errors = {};
 
   const name = values.name.trim();
@@ -156,8 +158,26 @@ function validate(values, paragraphs) {
   return errors;
 }
 
+/** Trims every scalar field and drops blank biography paragraphs. */
+export function buildProfilePayload(values, paragraphs) {
+  return {
+    name: values.name.trim(),
+    email: values.email.trim(),
+    headline: values.headline.trim(),
+    intro: values.intro.trim(),
+    bio: paragraphs
+      .map((paragraph) => paragraph.trim())
+      .filter((paragraph) => paragraph.length > 0),
+    location: values.location.trim(),
+    github: values.github.trim(),
+    linkedin: values.linkedin.trim(),
+    leetcode: values.leetcode.trim(),
+    resumePath: values.resumePath.trim(),
+  };
+}
+
 export default function AdminProfilePage() {
-  const { markUnauthenticated } = useAdminAuth();
+  const { markUnauthenticated, status: authStatus } = useAdminAuth();
   const [values, setValues] = useState(emptyValues);
   const [paragraphs, setParagraphs] = useState([{ id: 1, text: '' }]);
   const [snapshot, setSnapshot] = useState(() =>
@@ -175,6 +195,25 @@ export default function AdminProfilePage() {
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [paragraphToRemove, setParagraphToRemove] = useState(null);
+  // Synchronous in-flight guard: React state is still `false` during the same
+  // tick as the first click, so a second click could send a duplicate PUT.
+  const savingRef = useRef(false);
+  // Draft persistence needs the latest keystrokes, including text typed while
+  // the save request was in flight. Refs mirror the render state exactly.
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  const paragraphsRef = useRef(paragraphs);
+  paragraphsRef.current = paragraphs;
+  // A 401 must win over the unsaved-changes blocker; signing in again is the
+  // only way forward and the draft is already preserved.
+  const allowNavigation = useRef(false);
+
+  const persistDraft = useCallback(() => {
+    saveDraft(PROFILE_DRAFT_KEY, {
+      values: { ...valuesRef.current },
+      paragraphs: paragraphsRef.current.map((paragraph) => paragraph.text),
+    });
+  }, []);
 
   const dirty = useMemo(
     () => isDraftDirty(values, paragraphs, snapshot),
@@ -192,7 +231,31 @@ export default function AdminProfilePage() {
     [paragraphs],
   );
 
-  const blocker = useBlocker(() => dirty && !submitting);
+  const blocker = useBlocker(
+    () =>
+      dirty &&
+      !submitting &&
+      !allowNavigation.current &&
+      authStatus === ADMIN_AUTH_STATUS.authenticated,
+  );
+
+  // A session lost while the form is dirty (401 or a sign-out broadcast from
+  // another tab) must leave a restorable snapshot before the redirect.
+  useEffect(() => {
+    if (authStatus === ADMIN_AUTH_STATUS.unauthenticated && dirty) {
+      persistDraft();
+    }
+  }, [authStatus, dirty, persistDraft]);
+
+  // Drafts are also saved on every edit. A cross-tab sign-out unmounts this
+  // route in the same commit that changes the auth status, so an effect that
+  // only reacts to `unauthenticated` can lose the race; the latest snapshot is
+  // already in sessionStorage by then.
+  useEffect(() => {
+    if (dirty) {
+      persistDraft();
+    }
+  }, [dirty, values, paragraphs, persistDraft]);
 
   useEffect(() => {
     if (!dirty || submitting) {
@@ -229,12 +292,31 @@ export default function AdminProfilePage() {
         setHadProfile(profile !== null);
         setStatus('ready');
         setLoadError(null);
+
+        // Restore a draft preserved by a previous 401 or cross-tab sign-out.
+        const draft = takeDraft(PROFILE_DRAFT_KEY);
+        if (draft && draft.values && typeof draft.values === 'object') {
+          const draftParagraphs = Array.isArray(draft.paragraphs) ? draft.paragraphs : [];
+          setValues({ ...emptyValues(), ...draft.values });
+          setParagraphs(
+            draftParagraphs.length > 0
+              ? draftParagraphs.map((text) => ({
+                  id: nextParagraphId.current++,
+                  text: typeof text === 'string' ? text : '',
+                }))
+              : [{ id: nextParagraphId.current++, text: '' }],
+          );
+          setNotice({
+            tone: 'success',
+            message: 'We restored the draft you were editing when your session ended.',
+          });
+        }
       } catch (requestError) {
         if (requestError?.name === 'AbortError') {
           return;
         }
         if (requestError?.status === 401) {
-          markUnauthenticated();
+          markUnauthenticated('expired');
           return;
         }
         setStatus('error');
@@ -261,6 +343,7 @@ export default function AdminProfilePage() {
 
   function confirmReload() {
     setReloadDialogOpen(false);
+    clearDraft(PROFILE_DRAFT_KEY);
     setStatus('loading');
     load();
   }
@@ -300,6 +383,7 @@ export default function AdminProfilePage() {
 
   function confirmDiscardChanges() {
     setDiscardDialogOpen(false);
+    clearDraft(PROFILE_DRAFT_KEY);
 
     // The snapshot stores paragraph text rather than editor ids, so rebuilding
     // the rows here gives each restored paragraph a fresh, stable id.
@@ -318,30 +402,31 @@ export default function AdminProfilePage() {
     setNotice({ tone: 'success', message: 'Unsaved changes were discarded.' });
   }
 
+  function confirmBlockedNavigation() {
+    clearDraft(PROFILE_DRAFT_KEY);
+    blocker.proceed?.();
+  }
+
   async function saveProfile(trimmed) {
+    if (savingRef.current) {
+      return;
+    }
+    savingRef.current = true;
     setSubmitting(true);
     setFormError(null);
     setNotice(null);
     try {
-      const payload = {
-        name: values.name.trim(),
-        email: values.email.trim(),
-        headline: values.headline.trim(),
-        intro: values.intro.trim(),
-        bio: trimmed,
-        location: values.location.trim(),
-        github: values.github.trim(),
-        linkedin: values.linkedin.trim(),
-        leetcode: values.leetcode.trim(),
-        resumePath: values.resumePath.trim(),
-      };
+      const payload = buildProfilePayload(values, trimmed);
       const saved = await updateProfile(payload);
+      clearDraft(PROFILE_DRAFT_KEY);
       applyProfile(saved);
       setHadProfile(true);
       setNotice({ tone: 'success', message: 'Your profile was saved.' });
     } catch (requestError) {
       if (requestError?.status === 401) {
-        markUnauthenticated();
+        persistDraft();
+        allowNavigation.current = true;
+        markUnauthenticated('expired');
         return;
       }
       if (requestError?.fields && typeof requestError.fields === 'object') {
@@ -363,6 +448,7 @@ export default function AdminProfilePage() {
         setFormError(describeError(requestError, 'We could not save your profile. Please try again.'));
       }
     } finally {
+      savingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -374,7 +460,7 @@ export default function AdminProfilePage() {
     }
 
     const trimmed = trimmedParagraphs();
-    const errors = validate(values, trimmed);
+    const errors = validateProfile(values, trimmed);
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       setFormError('Please fix the highlighted fields and try again.');
@@ -396,7 +482,7 @@ export default function AdminProfilePage() {
     setSaveDialogOpen(false);
 
     const trimmed = trimmedParagraphs();
-    const errors = validate(values, trimmed);
+    const errors = validateProfile(values, trimmed);
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       setFormError('Please fix the highlighted fields and try again.');
@@ -645,7 +731,7 @@ export default function AdminProfilePage() {
           busyLabel="Discarding…"
           busy={false}
           onCancel={() => blocker.reset?.()}
-          onConfirm={() => blocker.proceed?.()}
+          onConfirm={confirmBlockedNavigation}
         />
       ) : null}
     </div>

@@ -124,8 +124,8 @@ test('serves index.html for direct navigations to every admin route', async () =
     assert.equal(response.headers.get('cache-control'), REVALIDATE);
     assert.equal(
       response.headers.get('x-robots-tag'),
-      'noindex',
-      `${route} should be excluded from search indexes`,
+      'noindex, nofollow',
+      `${route} should be excluded from search indexes and link following`,
     );
     assert.ok(text.includes(INDEX_MARKER), `${route} should return the SPA entry`);
   }

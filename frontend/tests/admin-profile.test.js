@@ -139,6 +139,8 @@ after(async () => {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  window.sessionStorage.clear();
+  window.localStorage.clear();
 });
 
 function jsonResponse(payload, status = 200) {
@@ -401,6 +403,182 @@ test('marks a biography paragraph dirty and clears the snapshot after a successf
     'saved edits must not trigger the navigation blocker',
   );
   assert.equal(router.state.location.pathname, '/admin');
+});
+
+test('two synchronous Save profile clicks send one PUT, and a failure preserves the draft', async (t) => {
+  const calls = [];
+  let failPut;
+  globalThis.fetch = async (url, init = {}) => {
+    const method = (init.method ?? 'GET').toUpperCase();
+    calls.push({ url: String(url), method });
+
+    if (String(url) === '/api/auth/me') {
+      return jsonResponse({
+        data: { admin: { id: 'admin-1', email: 'owner@example.com', name: 'Owner' } },
+      });
+    }
+
+    if (String(url) === '/api/admin/profile' && method === 'GET') {
+      return jsonResponse({ data: { profile: initialProfile } });
+    }
+
+    if (String(url) === '/api/admin/profile' && method === 'PUT') {
+      return new Promise((resolve, reject) => {
+        failPut = () => reject(new TypeError('socket closed'));
+      });
+    }
+
+    throw new Error(`Unexpected request in admin profile test: ${method} ${url}`);
+  };
+
+  const { unmount } = await mountProfile();
+  t.after(unmount);
+
+  await editField('profile-name', 'Draft Name');
+  await editField('profile-headline', 'Draft headline');
+
+  const save = findButton('Save profile');
+  await act(async () => {
+    save.click();
+    save.click();
+  });
+  await flush();
+
+  const puts = calls.filter(
+    (call) => call.url === '/api/admin/profile' && call.method === 'PUT',
+  );
+  assert.equal(puts.length, 1, 'a same-tick double click must send one PUT');
+
+  const busyButton = findButton('Saving…');
+  assert.ok(busyButton, 'the form must stay in its busy state while the PUT is pending');
+  assert.equal(busyButton.disabled, true);
+
+  await act(async () => {
+    failPut();
+  });
+  await flush();
+
+  const alert = document.querySelector('[role="alert"]');
+  assert.ok(alert, 'a failed save must expose an alert');
+  assert.match(alert.textContent, /could not reach the server/i);
+  assert.equal(findButton('Save profile').disabled, false, 'busy state must be released');
+  assert.equal(document.getElementById('profile-name').value, 'Draft Name');
+  assert.equal(document.getElementById('profile-headline').value, 'Draft headline');
+});
+
+test('a 401 save keeps the typed profile, bypasses the blocker, and restores the draft', async (t) => {
+  globalThis.fetch = async (url, init = {}) => {
+    const method = (init.method ?? 'GET').toUpperCase();
+
+    if (String(url) === '/api/auth/me') {
+      return jsonResponse({
+        data: { admin: { id: 'admin-1', email: 'owner@example.com', name: 'Owner' } },
+      });
+    }
+
+    if (String(url) === '/api/admin/profile' && method === 'GET') {
+      return jsonResponse({ data: { profile: initialProfile } });
+    }
+
+    if (String(url) === '/api/admin/profile' && method === 'PUT') {
+      return jsonResponse(
+        { error: { code: 'UNAUTHENTICATED', message: 'Your session has expired.' } },
+        401,
+      );
+    }
+
+    throw new Error(`Unexpected request in admin profile test: ${method} ${url}`);
+  };
+
+  const first = await mountProfile();
+  await editField('profile-name', 'Draft Name');
+  await editField('profile-headline', 'Draft headline');
+
+  await act(async () => {
+    findButton('Save profile').click();
+  });
+  await flush();
+
+  const savedDraft = JSON.parse(
+    window.sessionStorage.getItem('pradeep-portfolio.admin.draft.profile'),
+  );
+  assert.equal(savedDraft.values.name, 'Draft Name');
+  assert.equal(savedDraft.values.headline, 'Draft headline');
+
+  // The session-expiry navigation must not be trapped by the dirty blocker.
+  await navigate(first.router, '/admin');
+  assert.equal(first.router.state.location.pathname, '/admin');
+  assert.equal(document.querySelector('[role="alertdialog"]'), null);
+
+  await first.unmount();
+
+  globalThis.fetch = async (url, init = {}) => {
+    const method = (init.method ?? 'GET').toUpperCase();
+
+    if (String(url) === '/api/auth/me') {
+      return jsonResponse({
+        data: { admin: { id: 'admin-1', email: 'owner@example.com', name: 'Owner' } },
+      });
+    }
+
+    if (String(url) === '/api/admin/profile' && method === 'GET') {
+      return jsonResponse({ data: { profile: initialProfile } });
+    }
+
+    throw new Error(`Unexpected request after re-login: ${method} ${url}`);
+  };
+
+  const second = await mountProfile();
+  t.after(second.unmount);
+
+  assert.equal(document.getElementById('profile-name').value, 'Draft Name');
+  assert.equal(document.getElementById('profile-headline').value, 'Draft headline');
+  assert.match(document.body.textContent, /restored the draft/i);
+  const remainingDraft = JSON.parse(
+    window.sessionStorage.getItem('pradeep-portfolio.admin.draft.profile'),
+  );
+  assert.equal(remainingDraft.values.name, 'Draft Name');
+  assert.equal(
+    remainingDraft.values.headline,
+    'Draft headline',
+    'the latest snapshot must stay available in this tab',
+  );
+});
+
+test('a sign-out broadcast from another tab preserves the profile draft and releases the blocker', async (t) => {
+  mockProfileApi();
+  const { router, unmount } = await mountProfile();
+  t.after(unmount);
+
+  await editField('profile-headline', 'Cross-tab draft');
+
+  await act(async () => {
+    window.dispatchEvent(
+      new window.StorageEvent('storage', {
+        key: 'pradeep-portfolio.admin.auth',
+        newValue: JSON.stringify({
+          type: 'signed-out',
+          reason: 'signed-out',
+          at: Date.now(),
+          nonce: 'test',
+        }),
+      }),
+    );
+  });
+  await flush();
+
+  const savedDraft = JSON.parse(
+    window.sessionStorage.getItem('pradeep-portfolio.admin.draft.profile'),
+  );
+  assert.equal(savedDraft.values.headline, 'Cross-tab draft');
+
+  await navigate(router, '/admin');
+  assert.equal(router.state.location.pathname, '/admin');
+  assert.equal(
+    document.querySelector('[role="alertdialog"]'),
+    null,
+    'a remote sign-out must not leave the dirty blocker open',
+  );
 });
 
 test('Remove paragraph asks for confirmation and leaves the draft untouched on cancel', async (t) => {

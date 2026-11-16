@@ -379,6 +379,30 @@ test('messages page hides bodies, persists View/Hide, syncs read, filters, refre
   }
 });
 
+test('two synchronous message toggles send exactly one PATCH', async () => {
+  const { host, root } = await mountPage();
+
+  try {
+    const alice = rowByText(host, 'Alice');
+    const markRead = buttonByText(alice, 'Mark read');
+    assert.ok(markRead);
+
+    // Both dispatches run before React can commit the busy render.
+    await act(async () => {
+      markRead.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+      markRead.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    });
+    await flush();
+
+    const patches = fetchCalls.filter(
+      (call) => call.method === 'PATCH' && call.path.endsWith('/m1'),
+    );
+    assert.equal(patches.length, 1, 'a same-tick double click must send one PATCH');
+  } finally {
+    await unmount(root, host);
+  }
+});
+
 test('pagination buttons change pages and disable at the boundaries', async () => {
   const { host, root } = createHost();
   const changes = [];

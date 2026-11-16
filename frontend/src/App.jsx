@@ -1,4 +1,5 @@
 import Navbar from './components/Navbar.jsx';
+import useDocumentTitle from './hooks/useDocumentTitle.js';
 import About from './sections/About.jsx';
 import Background from './sections/Background.jsx';
 import Contact from './sections/Contact.jsx';
@@ -8,6 +9,8 @@ import Skills from './sections/Skills.jsx';
 import Work from './sections/Work.jsx';
 import NotFound from './pages/NotFound.jsx';
 import { PortfolioProvider } from './PortfolioContext.jsx';
+
+export const HOME_DOCUMENT_TITLE = 'Pradeep Chavan — Developer Portfolio';
 
 /**
  * The public portfolio is intentionally router-free: it is one page at `/`
@@ -24,13 +27,9 @@ function currentPathname() {
   return typeof window === 'undefined' ? '/' : window.location.pathname;
 }
 
-/** App composes the page sections. Content and styling live in separate files. */
-export default function App({ pathname }) {
-  // The `pathname` prop exists for server-side rendering tests; browsers use
-  // the real location and never need to pass it.
-  if (!isKnownPublicPath(pathname ?? currentPathname())) {
-    return <NotFound />;
-  }
+/** The homepage owns its title; the 404 view owns the not-found title. */
+function PortfolioHome() {
+  useDocumentTitle(HOME_DOCUMENT_TITLE);
 
   return (
     <PortfolioProvider>
@@ -53,4 +52,15 @@ export default function App({ pathname }) {
       <Footer />
     </PortfolioProvider>
   );
+}
+
+/** App composes the page sections. Content and styling live in separate files. */
+export default function App({ pathname }) {
+  // The `pathname` prop exists for server-side rendering tests; browsers use
+  // the real location and never need to pass it.
+  if (!isKnownPublicPath(pathname ?? currentPathname())) {
+    return <NotFound />;
+  }
+
+  return <PortfolioHome />;
 }

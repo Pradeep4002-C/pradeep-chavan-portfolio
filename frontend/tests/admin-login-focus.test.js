@@ -129,7 +129,7 @@ async function flush() {
   });
 }
 
-async function mountLogin() {
+async function mountLogin(state) {
   const router = createMemoryRouter(
     [
       {
@@ -145,7 +145,14 @@ async function mountLogin() {
         element: React.createElement('div', null, 'Admin dashboard'),
       },
     ],
-    { initialEntries: ['/admin/login'] },
+    {
+      initialEntries: [
+        {
+          pathname: '/admin/login',
+          state,
+        },
+      ],
+    },
   );
 
   const root = createRoot(document.getElementById('root'));
@@ -214,4 +221,123 @@ test('an invalid email is rejected before a request and receives focus', async (
   assert.equal(document.activeElement?.id, 'admin-email');
   assert.match(document.getElementById('admin-email-error').textContent, /valid email/i);
   assert.match(document.body.textContent, /Please fix the highlighted fields/);
+});
+
+test('sign-in trims the email but preserves an intentionally spaced password', async (t) => {
+  let postedBody = null;
+
+  globalThis.fetch = async (url, init = {}) => {
+    const method = (init.method ?? 'GET').toUpperCase();
+
+    if (String(url) === '/api/auth/me') {
+      return new Response(
+        JSON.stringify({ error: { code: 'UNAUTHENTICATED', message: 'Sign in required.' } }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    if (String(url) === '/api/auth/login' && method === 'POST') {
+      postedBody = JSON.parse(init.body);
+      return new Response(
+        JSON.stringify({
+          data: { admin: { id: 'admin-1', email: 'owner@example.com', name: 'Owner' } },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    throw new Error(`Unexpected request in admin login test: ${method} ${url}`);
+  };
+
+  const { router, unmount } = await mountLogin();
+  t.after(unmount);
+
+  await act(async () => {
+    setValue(document.getElementById('admin-email'), '  owner@example.com  ');
+    setValue(document.getElementById('admin-password'), '  secret  ');
+  });
+
+  await act(async () => {
+    findButton('Sign in').click();
+  });
+  await flush();
+
+  assert.deepEqual(postedBody, {
+    email: 'owner@example.com',
+    password: '  secret  ',
+  });
+  assert.equal(router.state.location.pathname, '/admin');
+});
+
+test('a session-expired login shows recovery copy instead of a bare form', async (t) => {
+  const { unmount } = await mountLogin({
+    from: { pathname: '/admin/profile' },
+    reason: 'expired',
+  });
+  t.after(unmount);
+
+  assert.match(
+    document.body.textContent,
+    /Your session expired before the change was saved\. Sign in again — your draft has been kept\./,
+  );
+  assert.doesNotMatch(document.body.textContent, /undefined/);
+});
+
+test('two synchronous sign-in clicks send one request and a failure preserves the credentials', async (t) => {
+  const calls = [];
+  let rejectLogin;
+  globalThis.fetch = async (url, init = {}) => {
+    const method = (init.method ?? 'GET').toUpperCase();
+    calls.push({ url: String(url), method });
+
+    if (String(url) === '/api/auth/me') {
+      return new Response(
+        JSON.stringify({ error: { code: 'UNAUTHENTICATED', message: 'Sign in required.' } }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    if (String(url) === '/api/auth/login' && method === 'POST') {
+      return new Promise((resolve, reject) => {
+        rejectLogin = () => reject(new TypeError('offline'));
+      });
+    }
+
+    throw new Error(`Unexpected request in admin login test: ${method} ${url}`);
+  };
+
+  const { unmount } = await mountLogin();
+  try {
+    await act(async () => {
+      setValue(document.getElementById('admin-email'), 'owner@example.com');
+      setValue(document.getElementById('admin-password'), 'secret-password');
+    });
+
+    const submit = () => document.querySelector('form button[type="submit"]');
+    await act(async () => {
+      submit().click();
+      submit().click();
+    });
+    await flush();
+
+    assert.equal(
+      calls.filter((call) => call.method === 'POST').length,
+      1,
+      'a same-tick double click must send one sign-in request',
+    );
+    assert.equal(submit().disabled, true, 'the submit button stays busy while pending');
+
+    await act(async () => {
+      rejectLogin();
+    });
+    await flush();
+
+    assert.match(document.body.textContent, /could not reach the server/i);
+    assert.equal(document.getElementById('admin-email').value, 'owner@example.com');
+    assert.equal(document.getElementById('admin-password').value, 'secret-password');
+    assert.equal(submit().disabled, false, 'the form must allow a retry');
+  } finally {
+    await unmount();
+    globalThis.fetch = originalFetch;
+  }
 });

@@ -42,6 +42,22 @@
   transition-duration: var(--default-transition-duration);
 }
 
+/* Deep editorial mesh for dark surfaces. The public page has a paper base and
+   a dark Contact finale, so the #09090b treatment belongs to that surface
+   rather than <body>, where it would leave ink-on-paper sections unreadable.
+   Fixed attachment keeps the two soft pools anchored to the viewport; neither
+   gradient participates in layout, so there is no CLS. `color-scheme: dark`
+   also keeps native autofill and control chrome from falling back to light
+   blue system styling. */
+@utility editorial-dark-mesh {
+  background-color: #09090b;
+  background-image:
+    radial-gradient(circle at 15% 15%, rgba(63, 63, 70, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 85% 85%, rgba(39, 39, 42, 0.15) 0%, transparent 45%);
+  background-attachment: fixed;
+  color-scheme: dark;
+}
+
 /* The hero's typing cursor. It is a single, slow opacity blink with no motion;
    the reduced-motion guard below shortens it, and the component removes the
    cursor entirely once the name is complete. */
@@ -74,6 +90,13 @@
 
   body {
     @apply bg-paper font-sans text-ink antialiased;
+    /* Paper-toned echo of the dark Contact mesh: the same two anchor points
+       and falloff, held to a whisper so the editorial surface gains depth
+       without competing with the content. */
+    background-image:
+      radial-gradient(circle at 15% 15%, rgba(63, 63, 70, 0.035) 0%, transparent 40%),
+      radial-gradient(circle at 85% 85%, rgba(39, 39, 42, 0.045) 0%, transparent 45%);
+    background-attachment: fixed;
     font-synthesis: none;
   }
 

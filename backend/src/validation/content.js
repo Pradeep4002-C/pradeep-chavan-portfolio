@@ -88,14 +88,10 @@ const yearField = z
 /** Required or optional absolute http(s) URL, where '' means "not set". */
 function optionalUrlField(label, max = CONTENT_LIMITS.urlMax) {
   return z
-    .union([
-      z.literal(''),
-      z
-        .string({ error: `${label} must be text.` })
-        .trim()
-        .max(max, `${label} must be ${max} characters or fewer.`)
-        .refine(isHttpUrl, `${label} must be a valid http or https URL.`),
-    ])
+    .string({ error: `${label} must be text.` })
+    .trim()
+    .max(max, `${label} must be ${max} characters or fewer.`)
+    .refine((value) => value === '' || isHttpUrl(value), `${label} must be a valid http or https URL.`)
     .optional();
 }
 

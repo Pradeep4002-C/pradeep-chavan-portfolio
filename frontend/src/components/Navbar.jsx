@@ -18,22 +18,27 @@ const SECTION_LABELS = {
 };
 
 /* Shared link styling.
-   - Default: muted text, no underline.
-   - Hover / keyboard focus: text shifts to the accent and a 1px accent
-     underline grows from the left. The bar is absolutely positioned, so it
-     never moves the text or resizes the navbar.
-   - Active section: full-contrast text with the same accent underline kept
-     visible, so a permanent marker is never confused with a passing hover.
-   - Below `md` there is no underline; the active row instead takes the accent
-     as its divider, which keeps the marker visible on touch layouts. */
+   - Default: muted text, no underline. The underline pseudo-element stays at
+     scale-x-0 on every non-active link.
+   - Hover / keyboard focus on a non-active link: text shifts to the accent.
+     Keyboard focus also keeps the shared accent ring. Neither state grows the
+     underline, so a passing pointer or focus can never impersonate the active
+     section marker.
+   - Active section: full-contrast ink text with a crisp 2px accent bar kept
+     visible. The bar is exclusively driven by `aria-current`, and it grows
+     with a transform transition only when motion is allowed.
+   - Below `md` the active row instead gets a vertical accent bar in the drawer
+     gutter plus semibold ink text. The bar is absolutely positioned, so the
+     48px touch target and text alignment stay untouched. */
 function linkClass(isActive) {
   return [
     'relative block min-h-[48px] min-w-[48px] cursor-pointer border-b py-[15px] text-base outline-none focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:ring-offset-2 transition-ui',
-    'md:inline-flex md:items-center md:border-0 md:px-2 md:-mx-2 md:py-0 md:text-[0.84rem]',
-    "md:after:absolute md:after:bottom-[9px] md:after:left-2 md:after:right-2 md:after:h-px md:after:origin-left md:after:bg-accent md:after:transition-transform md:after:duration-200 md:after:content-['']",
+    "before:absolute before:-left-2 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-accent before:opacity-0 before:content-[''] motion-safe:before:transition-opacity motion-safe:before:duration-200",
+    'md:inline-flex md:items-center md:border-0 md:px-2 md:-mx-2 md:py-0 md:text-[0.84rem] md:before:hidden',
+    "md:after:absolute md:after:bottom-[8px] md:after:left-2 md:after:right-2 md:after:h-0.5 md:after:origin-left md:after:rounded-full md:after:bg-accent md:after:content-[''] md:motion-safe:after:transition-transform md:motion-safe:after:duration-200",
     isActive
-      ? 'border-accent text-ink md:after:scale-x-100'
-      : 'border-line text-muted hover:text-accent focus-visible:text-accent md:after:scale-x-0 md:hover:after:scale-x-100 md:focus-visible:after:scale-x-100',
+      ? 'border-accent font-semibold text-ink before:opacity-100 md:font-normal md:after:scale-x-100'
+      : 'border-line text-muted hover:text-accent focus-visible:text-accent md:after:scale-x-0',
   ].join(' ');
 }
 
@@ -70,6 +75,13 @@ export default function Navbar() {
   // A section tapped from the mobile drawer is scrolled only after the drawer
   // closes and the body scroll lock is released.
   const pendingSectionRef = useRef(null);
+  // The hash present on the very first render is the deep-link target. Later
+  // hash changes belong to the browser's own anchor/history handling.
+  const initialHashRef = useRef(
+    typeof window === 'undefined' ? '' : window.location.hash.slice(1),
+  );
+  const hashAlignmentDoneRef = useRef(false);
+  const userScrolledRef = useRef(false);
   const resumeHref = profile.resume
     ? `${import.meta.env.BASE_URL}${profile.resume}`
     : null;
@@ -99,10 +111,67 @@ export default function Navbar() {
 
     const visible = new Set();
     let observer;
+    // The reading band cannot activate the final section on very tall
+    // viewports: #contact can begin below the band while #background still
+    // overlaps it, and navigation order gives the earlier section the win.
+    // Absolute scroll limits are unambiguous, so a boundary override wins
+    // while the page is pinned at the very top or bottom.
+    let boundaryId = null;
+    let boundaryFrame = 0;
+
+    function applyBoundary() {
+      boundaryFrame = 0;
+      const page = document.documentElement;
+      const viewportHeight = window.innerHeight || 1;
+      const maxScroll = Math.max(0, page.scrollHeight - viewportHeight);
+      const scrollY = Math.max(0, window.scrollY || page.scrollTop || 0);
+      let nextBoundary = null;
+
+      if (maxScroll > 0) {
+        if (scrollY <= 1) {
+          // `home` has no navigation link; selecting it clears the marker.
+          nextBoundary = observedIds[0];
+        } else if (scrollY >= maxScroll - 1) {
+          nextBoundary = observedIds[observedIds.length - 1];
+        }
+      }
+
+      if (nextBoundary === boundaryId) return;
+      const previousBoundary = boundaryId;
+      boundaryId = nextBoundary;
+      if (nextBoundary) {
+        setActiveId(nextBoundary);
+        return;
+      }
+
+      // Leaving a pinned boundary must immediately repaint the marker from the
+      // sections under the reading band. Waiting for the observer is racy: its
+      // callback may have already run (and returned) while the boundary was
+      // still pinned, leaving no active link until the next intersection.
+      if (previousBoundary) {
+        const header = document.querySelector('header');
+        const headerOffset = header ? Math.ceil(header.getBoundingClientRect().height) : 80;
+        const readingLine = Math.round(headerOffset + (viewportHeight - headerOffset) / 2);
+        const current = elements.find((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.top <= readingLine && rect.bottom > readingLine;
+        });
+        const currentId = current?.id ?? observedIds.find((id) => visible.has(id));
+        if (currentId) setActiveId(currentId);
+      }
+    }
+
+    function scheduleBoundary() {
+      if (boundaryFrame) return;
+      boundaryFrame = window.requestAnimationFrame(applyBoundary);
+    }
 
     function connect() {
       if (observer) observer.disconnect();
       visible.clear();
+
+      // Re-read the boundary after any relayout (async content, resize).
+      applyBoundary();
 
       const header = document.querySelector('header');
       const headerOffset = header ? Math.ceil(header.getBoundingClientRect().height) : 80;
@@ -117,6 +186,11 @@ export default function Navbar() {
             if (entry.isIntersecting) visible.add(entry.target.id);
             else visible.delete(entry.target.id);
           });
+
+          // A boundary is a stronger signal than the band; never let an
+          // observer callback replace #home or the final section while the
+          // page cannot scroll any further in that direction.
+          if (boundaryId) return;
 
           const currentId = observedIds.find((id) => visible.has(id));
           if (currentId) setActiveId(currentId);
@@ -140,10 +214,13 @@ export default function Navbar() {
     }
 
     connect();
+    window.addEventListener('scroll', scheduleBoundary, { passive: true });
     window.addEventListener('resize', scheduleReconnect);
 
     return () => {
       clearTimeout(resizeTimer);
+      if (boundaryFrame) window.cancelAnimationFrame(boundaryFrame);
+      window.removeEventListener('scroll', scheduleBoundary);
       window.removeEventListener('resize', scheduleReconnect);
       if (observer) observer.disconnect();
     };
@@ -155,22 +232,83 @@ export default function Navbar() {
      above it. Waiting for a non-loading status and one animation frame lets the
      final section heights commit before the jump.
 
-     `scrollIntoView` honours the html `scroll-padding-top`, so the sticky header
-     still keeps its distance. */
+     If the visitor starts reading before the request settles, their scroll wins:
+     the deep link is only honoured while they have not moved the page
+     themselves. `scrollIntoView` honours the html `scroll-padding-top`, so the
+     sticky header still keeps its distance. */
   useEffect(() => {
-    if (status === PORTFOLIO_STATUS.loading) return undefined;
+    if (status === PORTFOLIO_STATUS.loading || hashAlignmentDoneRef.current) {
+      return undefined;
+    }
 
-    const id = window.location.hash.slice(1);
-    if (!id) return undefined;
+    const id = initialHashRef.current;
+    if (!id) {
+      hashAlignmentDoneRef.current = true;
+      return undefined;
+    }
 
     const frame = window.requestAnimationFrame(() => {
+      hashAlignmentDoneRef.current = true;
+      if (userScrolledRef.current) return;
+
       const target = document.getElementById(id);
       if (!target) return;
+
+      // Match the navigation marker immediately; the scroll spy will keep it
+      // in sync if the visitor continues scrolling.
+      setActiveId(id);
       target.scrollIntoView({ block: 'start', behavior: 'instant' });
     });
 
     return () => window.cancelAnimationFrame(frame);
   }, [sectionKey, status]);
+
+  /* Wheel, touch, and scroll-key input are unambiguous user intent. They only
+     matter while the cold-boot deep link is still waiting for data. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    function markUserScroll() {
+      if (!hashAlignmentDoneRef.current) {
+        userScrolledRef.current = true;
+      }
+    }
+
+    function handleKeyDown(event) {
+      // Scroll keys typed into a form control are editing, not page movement.
+      const target = event.target;
+      if (
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (
+        event.key === 'ArrowDown' ||
+        event.key === 'ArrowUp' ||
+        event.key === 'PageDown' ||
+        event.key === 'PageUp' ||
+        event.key === 'Home' ||
+        event.key === 'End' ||
+        event.key === ' '
+      ) {
+        markUserScroll();
+      }
+    }
+
+    window.addEventListener('wheel', markUserScroll, { passive: true });
+    window.addEventListener('touchmove', markUserScroll, { passive: true });
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('wheel', markUserScroll);
+      window.removeEventListener('touchmove', markUserScroll);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // Lock background scrolling while the drawer covers the viewport. The shared
   // reference-counted lock also keeps a modal dialog open above this drawer
@@ -205,6 +343,25 @@ export default function Navbar() {
       window.removeEventListener('resize', handleResize);
     };
   }, [menuOpen]);
+
+  /* Browser back/forward can land on a hash entry while the drawer is open.
+     Closing here releases the shared body lock immediately, before any native
+     anchor scrolling for the new history entry. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    function handleHistoryNavigation() {
+      setMenuOpen(false);
+    }
+
+    window.addEventListener('popstate', handleHistoryNavigation);
+    window.addEventListener('hashchange', handleHistoryNavigation);
+
+    return () => {
+      window.removeEventListener('popstate', handleHistoryNavigation);
+      window.removeEventListener('hashchange', handleHistoryNavigation);
+    };
+  }, []);
 
   /* Mobile drawer links close the drawer themselves instead of relying on the
      browser's hash jump: while the body is locked the native jump can be

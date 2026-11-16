@@ -81,7 +81,7 @@ function jsonResponse(payload, status = 200) {
   });
 }
 
-function makeConfig() {
+function makeConfig(items = [], calls = []) {
   return {
     key: 'skills',
     title: 'Skills',
@@ -92,10 +92,18 @@ function makeConfig() {
     emptyTitle: 'No skill groups yet',
     emptyMessage: 'Add a skill group to publish skills in the Skills section.',
     api: {
-      list: async () => [],
-      create: async (payload) => ({ id: 'created', ...payload }),
-      update: async (id, payload) => ({ id, ...payload }),
-      remove: async () => {},
+      list: async () => items.map((item) => ({ ...item })),
+      create: async (payload) => {
+        calls.push({ type: 'create', payload });
+        return { id: 'created', ...payload };
+      },
+      update: async (id, payload) => {
+        calls.push({ type: 'update', id, payload });
+        return { id, ...payload };
+      },
+      remove: async (id) => {
+        calls.push({ type: 'remove', id });
+      },
     },
     fields: [
       {
@@ -199,7 +207,7 @@ async function unmount(root, host) {
   host.remove();
 }
 
-async function mountManager() {
+async function mountManager(config = makeConfig()) {
   const { host, root } = createHost();
   const router = createMemoryRouter(
     [
@@ -208,7 +216,7 @@ async function mountManager() {
         element: React.createElement(
           AdminAuthProvider,
           null,
-          React.createElement(ResourceManager, { config: makeConfig() }),
+          React.createElement(ResourceManager, { config }),
         ),
       },
       {
@@ -403,6 +411,61 @@ test('dirty resource edits arm beforeunload and block route changes until discar
     assert.equal(router.state.location.pathname, '/admin');
     assert.equal(document.getElementById('resource-skills-label'), null);
     assert.match(host.textContent, /Admin dashboard/);
+  } finally {
+    await unmount(root, host);
+  }
+});
+
+test('two synchronous reorder or delete clicks send one mutation each', async () => {
+  const calls = [];
+  const config = makeConfig(
+    [
+      { id: 's1', label: 'Languages', order: 1 },
+      { id: 's2', label: 'Frameworks', order: 2 },
+    ],
+    calls,
+  );
+  const { host, root } = await mountManager(config);
+
+  const rowFor = (label) =>
+    [...host.querySelectorAll('li')].find((row) => row.textContent.includes(label));
+
+  try {
+    const moveDown = buttonByText(rowFor('Languages'), 'Move down');
+    assert.ok(moveDown, 'expected a Move down control on the first row');
+
+    // Same-tick double click: the ref must block the second handler even
+    // though `movingId` has not rendered yet.
+    await act(async () => {
+      moveDown.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+      moveDown.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    });
+    await flush();
+
+    const updates = calls.filter((call) => call.type === 'update');
+    assert.equal(updates.length, 2, 'one swap performs exactly two ordered updates');
+    assert.deepEqual(
+      updates.map((call) => call.id).sort(),
+      ['s1', 's2'],
+      'a duplicate click must not repeat the swap',
+    );
+
+    await click(buttonByText(rowFor('Languages'), 'Delete'));
+    const dialog = document.querySelector('[role="alertdialog"]');
+    assert.ok(dialog, 'expected the delete confirmation');
+
+    const confirm = buttonByText(dialog, 'Delete skill group');
+    await act(async () => {
+      confirm.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+      confirm.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    });
+    await flush();
+
+    assert.equal(
+      calls.filter((call) => call.type === 'remove').length,
+      1,
+      'a same-tick double click must send one DELETE',
+    );
   } finally {
     await unmount(root, host);
   }

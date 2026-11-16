@@ -47,3 +47,8 @@ export function lockBodyScroll() {
     }
   };
 }
+
+/** Observability for regression tests: no owner may leave the lock held. */
+export function getBodyScrollLockCount() {
+  return lockCount;
+}

@@ -5,9 +5,15 @@ import TechnologyTags, { projectTagClass } from './TechnologyTags.jsx';
 
 /* Every project is a surface card. From md up the artwork and the written proof
    sit side by side; below md they stack with the artwork first. The native
-   @starting-style transition makes each card ease in on first paint. */
+   @starting-style transition makes each card ease in on first paint.
+
+   Desktop pointer devices get one restrained lift: the card rises by 2px,
+   its border picks up the ink token, and the shadow gains one step. Only the
+   transform is gated behind `motion-safe`, so reduced-motion visitors still
+   receive the colour/shadow feedback without any movement. The hover delay is
+   forced to zero so a staggered entrance delay never postpones the lift. */
 const cardClass =
-  'grid gap-6 rounded-3xl border border-line-strong bg-surface p-5 shadow-sm transition-all duration-700 ease-out starting:opacity-0 starting:translate-y-4 sm:p-6 md:items-center md:gap-8 md:p-7';
+  'grid gap-6 rounded-3xl border border-line-strong bg-surface p-5 shadow-sm transition-all duration-200 ease-out starting:opacity-0 starting:translate-y-4 sm:p-6 md:items-center md:gap-8 md:p-7 md:motion-safe:hover:-translate-y-0.5 md:hover:border-ink/30 md:hover:shadow-md md:hover:delay-0!';
 const artworkFrameClass = 'min-w-0 overflow-hidden rounded-2xl shadow-md';
 
 /* The public API normalizes demo links to `demoHref`, while imported or raw

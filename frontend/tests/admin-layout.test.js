@@ -16,6 +16,7 @@ let createMemoryRouter;
 let RouterProvider;
 let AdminLayout;
 let AdminAuthProvider;
+let getBodyScrollLockCount;
 let desktopMatches = false;
 
 function installDom() {
@@ -108,8 +109,10 @@ before(async () => {
 
   const layoutModule = await vite.ssrLoadModule('/src/admin/AdminLayout.jsx');
   const authModule = await vite.ssrLoadModule('/src/admin/AdminAuthContext.jsx');
+  const scrollLockModule = await vite.ssrLoadModule('/src/components/bodyScrollLock.js');
   AdminLayout = layoutModule.default;
   AdminAuthProvider = authModule.AdminAuthProvider;
+  getBodyScrollLockCount = scrollLockModule.getBodyScrollLockCount;
 
   globalThis.fetch = async (url) => {
     if (String(url) === '/api/auth/me') {
@@ -236,6 +239,7 @@ test('the admin drawer uses a centred 48px icon, locks scrolling, and closes on 
   assert.equal(menuButton().querySelector('svg[data-menu-icon]')?.getAttribute('data-menu-icon'), 'menu');
   assert.equal(document.getElementById('admin-mobile-nav'), null);
   assert.equal(document.body.style.overflow, '', 'closing must restore body scrolling');
+  assert.equal(getBodyScrollLockCount(), 0);
 });
 
 test('Escape, the lg breakpoint, and route changes all close the admin drawer', async (t) => {
@@ -274,6 +278,36 @@ test('Escape, the lg breakpoint, and route changes all close the admin drawer', 
   assert.equal(router.state.location.pathname, '/admin/projects');
   assert.equal(document.getElementById('admin-mobile-nav'), null);
   assert.equal(document.body.style.overflow, '');
+});
+
+test('the admin drawer tracks the route title and releases its lock on Back', async (t) => {
+  const { router, unmount } = await mountLayout();
+  t.after(unmount);
+
+  assert.equal(document.title, 'Admin overview — Pradeep Chavan');
+
+  await openMenu();
+  assert.equal(document.body.style.overflow, 'hidden');
+  assert.equal(getBodyScrollLockCount(), 1);
+
+  // A history navigation can arrive while the drawer is open; the popstate
+  // listener must close it even before the router has repainted the page.
+  await act(async () => {
+    window.dispatchEvent(new window.Event('popstate'));
+  });
+  await flush();
+
+  assert.equal(document.getElementById('admin-mobile-nav'), null);
+  assert.equal(document.body.style.overflow, '');
+  assert.equal(getBodyScrollLockCount(), 0, 'an interrupted drawer must not leak the lock');
+
+  await act(async () => {
+    await router.navigate('/admin/projects');
+  });
+  await flush();
+
+  assert.equal(document.title, 'Projects — Admin — Pradeep Chavan');
+  assert.doesNotMatch(document.title, /undefined/);
 });
 
 test('a drawer link closes the panel and moves focus into the new page', async (t) => {

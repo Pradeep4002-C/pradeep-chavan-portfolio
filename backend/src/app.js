@@ -7,6 +7,7 @@ import { createAuthRouter } from './routes/auth.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createContactRateLimiter } from './middleware/contactRateLimit.js';
 import { privateApiCache } from './middleware/privateApiCache.js';
+import { privateNoIndex } from './middleware/privateNoIndex.js';
 import { notFound } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import {
@@ -43,6 +44,11 @@ export function createApp({
   }
 
   app.use(helmet());
+
+  // The API and the administrator application are private surfaces: keep every
+  // response, including errors and unknown sub-routes, out of search indexes.
+  // This is mounted before the routers so a route can never answer first.
+  app.use(['/api', '/admin'], privateNoIndex);
 
   // JSON-only API with a deliberately small body limit.
   app.use(express.json({ limit: '32kb' }));

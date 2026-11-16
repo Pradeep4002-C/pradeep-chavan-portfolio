@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import { focusFirstError } from '../components/formFocus.js';
+import useDocumentTitle from '../hooks/useDocumentTitle.js';
 import { ADMIN_AUTH_STATUS, useAdminAuth } from './AdminAuthContext.jsx';
+import { adminDocumentTitle } from './adminTitles.js';
 import {
   AdminBrand,
   AdminErrorState,
@@ -25,6 +27,26 @@ function safeDestination(from) {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const SESSION_NOTICES = Object.freeze({
+  expired: {
+    tone: 'error',
+    message:
+      'Your session expired before the change was saved. Sign in again — your draft has been kept.',
+  },
+  remote: {
+    tone: 'error',
+    message: 'You signed out in another tab. Sign in again to continue where you left off.',
+  },
+  inactivity: {
+    tone: 'error',
+    message: 'You were signed out after a period of inactivity. Sign in again to continue.',
+  },
+  'signed-out': {
+    tone: 'success',
+    message: 'You have signed out.',
+  },
+});
+
 function focusLoginError(errors) {
   focusFirstError(errors, ['email', 'password'], (key) =>
     document.getElementById(`admin-${key}`),
@@ -37,6 +59,9 @@ export default function AdminLoginPage() {
   const navigate = useNavigate();
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
+  // `submitting` only becomes true on the next render, so two clicks in the
+  // same tick would both pass the state check. A ref flips synchronously.
+  const submittingRef = useRef(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,6 +71,9 @@ export default function AdminLoginPage() {
   const [fieldErrors, setFieldErrors] = useState({});
 
   const destination = safeDestination(location.state?.from);
+  const sessionNotice = SESSION_NOTICES[location.state?.reason] ?? null;
+
+  useDocumentTitle(adminDocumentTitle('/admin/login'));
 
   useEffect(() => {
     if (status === ADMIN_AUTH_STATUS.unauthenticated) {
@@ -66,7 +94,7 @@ export default function AdminLoginPage() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    if (submitting) {
+    if (submittingRef.current) {
       return;
     }
 
@@ -93,6 +121,7 @@ export default function AdminLoginPage() {
     }
 
     setSubmitting(true);
+    submittingRef.current = true;
     setFormError(null);
     try {
       await login({ email: trimmedEmail, password });
@@ -104,27 +133,28 @@ export default function AdminLoginPage() {
       }
       setFormError(describeError(requestError, 'Sign-in failed. Please try again.'));
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
 
   if (status === ADMIN_AUTH_STATUS.loading) {
     return (
-      <div className="min-h-screen bg-sunken">
+      <main className="min-h-screen bg-sunken">
         <AdminLoading label="Checking your session…" />
-      </div>
+      </main>
     );
   }
 
   if (status === ADMIN_AUTH_STATUS.error) {
     return (
-      <div className="min-h-screen bg-sunken">
+      <main className="min-h-screen bg-sunken">
         <AdminErrorState
           title="We could not reach the sign-in service"
           message={describeError(error, 'We could not reach the sign-in service. Please try again.')}
           onRetry={checkSession}
         />
-      </div>
+      </main>
     );
   }
 
@@ -133,7 +163,7 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-sunken px-5 py-10">
+    <main className="flex min-h-screen items-center justify-center bg-sunken px-5 py-10">
       <div className="w-full max-w-md">
         <div className="mb-5 flex items-center justify-between gap-2 sm:gap-3">
           <span className="inline-flex min-w-0 items-center gap-2">
@@ -153,6 +183,12 @@ export default function AdminLoginPage() {
           <p className="mt-1.5 text-sm text-muted">
             This area is private. Sign in to manage portfolio content.
           </p>
+
+          {sessionNotice ? (
+            <div className="mt-5">
+              <Notice tone={sessionNotice.tone}>{sessionNotice.message}</Notice>
+            </div>
+          ) : null}
 
           {formError ? (
             <div className="mt-5">
@@ -238,6 +274,6 @@ export default function AdminLoginPage() {
           Private administration area. There is no public registration.
         </p>
       </div>
-    </div>
+    </main>
   );
 }

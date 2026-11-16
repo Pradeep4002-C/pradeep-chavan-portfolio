@@ -34,6 +34,7 @@ async function loadModules(t) {
   const navbar = await server.ssrLoadModule('/src/components/Navbar.jsx');
   const notFound = await server.ssrLoadModule('/src/pages/NotFound.jsx');
   const app = await server.ssrLoadModule('/src/App.jsx');
+  const bodyScrollLock = await server.ssrLoadModule('/src/components/bodyScrollLock.js');
 
   return {
     PortfolioContext: context.PortfolioContext,
@@ -49,6 +50,7 @@ async function loadModules(t) {
     NotFound: notFound.default,
     App: app.default,
     isKnownPublicPath: app.isKnownPublicPath,
+    getBodyScrollLockCount: bodyScrollLock.getBodyScrollLockCount,
   };
 }
 
@@ -392,6 +394,194 @@ test('a deep link is aligned after async portfolio data settles', async (t) => {
   }
 });
 
+test('manual input during a cold-boot deep link cancels the pending jump', async (t) => {
+  const { document: testDocument, restore } = installTestDocument(
+    '<!doctype html><html><head><title>Hash cancel test</title></head><body><div id="root"></div><section id="work"></section><section id="about"></section></body></html>',
+    'http://localhost/#about',
+  );
+
+  try {
+    const view = testDocument.defaultView;
+    view.matchMedia = () => ({
+      matches: false,
+      addEventListener() {},
+      removeEventListener() {},
+    });
+
+    const scrollCalls = [];
+    testDocument.getElementById('about').scrollIntoView = (options) => {
+      scrollCalls.push(options);
+    };
+
+    const { PortfolioContext, Navbar } = await loadModules(t);
+    const { createRoot } = await import('react-dom/client');
+    const root = createRoot(testDocument.getElementById('root'));
+    const readyValue = portfolioValue();
+    const loadingValue = {
+      ...readyValue,
+      projects: [],
+      skillGroups: [],
+      education: [],
+      certifications: [],
+      achievements: [],
+      status: 'loading',
+    };
+
+    const renderNavbar = (value) =>
+      React.createElement(
+        PortfolioContext.Provider,
+        { value },
+        React.createElement(Navbar),
+      );
+
+    await React.act(async () => {
+      root.render(renderNavbar(loadingValue));
+    });
+
+    // The visitor starts reading before the portfolio request settles.
+    await React.act(async () => {
+      view.dispatchEvent(new view.Event('wheel'));
+    });
+
+    await React.act(async () => {
+      root.render(renderNavbar(readyValue));
+    });
+
+    await React.act(async () => {
+      await new Promise((resolve) => view.requestAnimationFrame(resolve));
+      await new Promise((resolve) => view.requestAnimationFrame(resolve));
+    });
+
+    assert.deepEqual(
+      scrollCalls,
+      [],
+      'a deep link must not yank the viewport after the visitor has scrolled',
+    );
+
+    await React.act(async () => {
+      root.unmount();
+    });
+  } finally {
+    restore();
+  }
+});
+
+test('an aligned deep link marks the matching navigation item active', async (t) => {
+  const { document: testDocument, restore } = installTestDocument(
+    '<!doctype html><html><head><title>Hash highlight test</title></head><body><div id="root"></div><section id="work"></section><section id="about"></section></body></html>',
+    'http://localhost/#about',
+  );
+
+  try {
+    const view = testDocument.defaultView;
+    view.matchMedia = () => ({
+      matches: false,
+      addEventListener() {},
+      removeEventListener() {},
+    });
+
+    testDocument.getElementById('about').scrollIntoView = () => {};
+
+    const { PortfolioContext, Navbar } = await loadModules(t);
+    const { createRoot } = await import('react-dom/client');
+    const root = createRoot(testDocument.getElementById('root'));
+    const readyValue = portfolioValue();
+
+    await React.act(async () => {
+      root.render(
+        React.createElement(
+          PortfolioContext.Provider,
+          { value: readyValue },
+          React.createElement(Navbar),
+        ),
+      );
+    });
+
+    await React.act(async () => {
+      await new Promise((resolve) => view.requestAnimationFrame(resolve));
+      await new Promise((resolve) => view.requestAnimationFrame(resolve));
+    });
+
+    const aboutLink = Array.from(testDocument.querySelectorAll('a[href="#about"]'))[0];
+    assert.ok(aboutLink, 'the navigation must link to the About section');
+    assert.equal(
+      aboutLink.getAttribute('aria-current'),
+      'location',
+      'the deep-linked section must be highlighted immediately after alignment',
+    );
+
+    await React.act(async () => {
+      root.unmount();
+    });
+  } finally {
+    restore();
+  }
+});
+
+test('opening a public drawer then pressing Back closes it and releases the scroll lock', async (t) => {
+  const { document: testDocument, restore } = installTestDocument(
+    '<!doctype html><html><body><div id="root"></div><section id="home"></section><section id="work"></section><section id="skills"></section><section id="about"></section><section id="background"></section><section id="contact"></section></body></html>',
+    'http://localhost/',
+  );
+
+  try {
+    const view = testDocument.defaultView;
+    view.matchMedia = () => ({
+      matches: false,
+      addEventListener() {},
+      removeEventListener() {},
+    });
+
+    const { PortfolioContext, Navbar, getBodyScrollLockCount } = await loadModules(t);
+    const { createRoot } = await import('react-dom/client');
+    const root = createRoot(testDocument.getElementById('root'));
+
+    await React.act(async () => {
+      root.render(
+        React.createElement(
+          PortfolioContext.Provider,
+          { value: portfolioValue() },
+          React.createElement(Navbar),
+        ),
+      );
+    });
+
+    const toggle = testDocument.querySelector('button[aria-controls="primary-navigation"]');
+    assert.ok(toggle, 'the mobile menu toggle must render');
+
+    await React.act(async () => {
+      toggle.click();
+    });
+    await React.act(async () => {
+      await new Promise((resolve) => view.requestAnimationFrame(resolve));
+    });
+
+    assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+    assert.equal(testDocument.body.style.overflow, 'hidden');
+    assert.equal(getBodyScrollLockCount(), 1);
+
+    // Browser Back while the drawer is open: the history entry changes, and
+    // the drawer must close without React Router or a blocker involved.
+    await React.act(async () => {
+      view.dispatchEvent(new view.Event('popstate'));
+    });
+    await React.act(async () => {
+      await new Promise((resolve) => view.requestAnimationFrame(resolve));
+    });
+
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(testDocument.getElementById('primary-navigation')?.className.includes('hidden'), true);
+    assert.equal(testDocument.body.style.overflow, '', 'the lock must restore body overflow');
+    assert.equal(getBodyScrollLockCount(), 0, 'no drawer may leave the shared lock held');
+
+    await React.act(async () => {
+      root.unmount();
+    });
+  } finally {
+    restore();
+  }
+});
+
 test('the active-section spy marks the first visible section in navigation order', async (t) => {
   const { document: testDocument, restore } = installTestDocument(
     `<!doctype html><html><body>
@@ -512,6 +702,70 @@ test('the active-section spy marks the first visible section in navigation order
       observer.callback([entry('contact', false), entry('home', true)]);
     });
     assert.equal(activeHref(), null);
+
+    // Tall-viewport regression: at maximum scroll the reading band can still
+    // overlap #background while #contact begins below it. The absolute bottom
+    // boundary must win, and a late observer callback must not overwrite it.
+    Object.defineProperty(testDocument.documentElement, 'scrollHeight', {
+      configurable: true,
+      value: 6645,
+    });
+    Object.defineProperty(view, 'innerHeight', { configurable: true, value: 3000 });
+    Object.defineProperty(view, 'scrollY', {
+      configurable: true,
+      writable: true,
+      value: 3645,
+    });
+
+    await React.act(async () => {
+      view.dispatchEvent(new view.Event('scroll'));
+      await new Promise((resolve) => view.requestAnimationFrame(resolve));
+    });
+    assert.equal(activeHref(), '#contact');
+
+    await React.act(async () => {
+      observer.callback([entry('background', true), entry('contact', true)]);
+    });
+    assert.equal(activeHref(), '#contact');
+
+    // Back at the top the marker clears, and an observer callback for a lower
+    // section cannot replace the top boundary either.
+    view.scrollY = 0;
+    await React.act(async () => {
+      view.dispatchEvent(new view.Event('scroll'));
+      await new Promise((resolve) => view.requestAnimationFrame(resolve));
+    });
+    assert.equal(activeHref(), null);
+
+    await React.act(async () => {
+      observer.callback([entry('home', false), entry('work', true)]);
+    });
+    assert.equal(activeHref(), null);
+
+    // Leaving the top boundary must repaint immediately. The observer callback
+    // above already ran (and returned) while `home` was pinned, so a tall
+    // viewport would otherwise keep an empty marker until the next section
+    // handoff. Section rects are supplied because jsdom has no layout.
+    const sectionBounds = {
+      home: [0, 664],
+      work: [664, 2923],
+      skills: [2923, 3693],
+      about: [3693, 4481],
+      background: [4481, 5230],
+      contact: [5230, 6265],
+    };
+    for (const [id, [top, bottom]] of Object.entries(sectionBounds)) {
+      Object.defineProperty(testDocument.getElementById(id), 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ top: top - view.scrollY, bottom: bottom - view.scrollY }),
+      });
+    }
+    view.scrollY = 664;
+    await React.act(async () => {
+      view.dispatchEvent(new view.Event('scroll'));
+      await new Promise((resolve) => view.requestAnimationFrame(resolve));
+    });
+    assert.equal(activeHref(), '#work');
 
     await React.act(async () => {
       root.unmount();
@@ -1020,6 +1274,84 @@ test('the unavailable work state retries the portfolio request and recovers', as
 
     globalThis.fetch = originalFetch;
     console.warn = originalConsoleWarn;
+    restore();
+  }
+});
+
+test('a page restored from the back/forward cache revalidates the portfolio', async (t) => {
+  const { document: testDocument, restore } = installTestDocument(
+    '<!doctype html><html><head><title>Portfolio bfcache</title></head><body><div id="root"></div></body></html>',
+    'http://localhost/',
+  );
+  const view = testDocument.defaultView;
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  let root;
+
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          profile: { name: 'Pradeep Chavan', email: 'owner@example.com' },
+          projects: [],
+          skills: [],
+          education: [],
+          certifications: [],
+          achievements: [],
+        },
+      }),
+    };
+  };
+
+  try {
+    const { PortfolioProvider } = await loadModules(t);
+    const { createRoot } = await import('react-dom/client');
+    root = createRoot(testDocument.getElementById('root'));
+
+    await React.act(async () => {
+      root.render(
+        React.createElement(
+          PortfolioProvider,
+          null,
+          React.createElement('div', null, 'child'),
+        ),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    assert.equal(requests.length, 1, 'mounting fetches the portfolio once');
+
+    const pageShow = (persisted) => {
+      const event = new view.Event('pageshow');
+      Object.defineProperty(event, 'persisted', { value: persisted });
+      view.dispatchEvent(event);
+    };
+
+    await React.act(async () => {
+      pageShow(false);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    assert.equal(requests.length, 1, 'a normal pageshow must not refetch');
+
+    await React.act(async () => {
+      pageShow(true);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    assert.equal(
+      requests.length,
+      2,
+      'a bfcache-restored page must revalidate so admin edits are not stale',
+    );
+  } finally {
+    if (root) {
+      await React.act(async () => {
+        root.unmount();
+      });
+    }
+    globalThis.fetch = originalFetch;
     restore();
   }
 });
