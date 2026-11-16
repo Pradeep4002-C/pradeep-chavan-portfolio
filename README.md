@@ -11,6 +11,12 @@
 </p>
 
 <p align="center">
+  <a href="https://pradeep-chavan-portfolio.onrender.com">
+    <strong>🌐 Visit My Live Portfolio ↗</strong>
+  </a>
+</p>
+
+<p align="center">
   <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 18"></a>
   <a href="https://vite.dev/"><img src="https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite 6"></a>
   <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS 4"></a>
@@ -49,6 +55,8 @@ The application has two connected interfaces:
 Portfolio content is stored in MongoDB and served through an Express REST API. The administrator dashboard uses server-side session authentication, with passwords hashed using Argon2id.
 
 The project is also an exercise in building a maintainable full-stack application: separating frontend and backend responsibilities, validating API input, protecting sessions, testing important behaviour, and preparing a single-origin production deployment.
+
+**Live application:** https://pradeep-chavan-portfolio.onrender.com
 
 ## 🚀 Features
 
@@ -508,6 +516,10 @@ A separate UI-polish regression pass covers navigation indicators, focus treatme
 
 ## ☁️ Deployment
 
+The portfolio is **live and publicly accessible through Render**.
+
+🌐 **Live URL:** https://pradeep-chavan-portfolio.onrender.com
+
 The repository includes a Render Blueprint at `render.yaml`. It describes one Node web service that builds the frontend and starts Express; it is not a separate frontend and backend deployment.
 
 ```mermaid
@@ -563,7 +575,7 @@ Express serves the built frontend and API from the same origin. The production s
 8. Seed initial content if needed and create the administrator using the trusted deployment shell.
 9. Test sign-in, content editing, contact submission, page refresh, and mobile layouts.
 
-A successful local build does not guarantee a successful hosted deployment. Verify the live service and its logs after each deployment.
+The application is deployed at the live URL above. A successful local build does not guarantee a successful hosted deployment. Verify the live service and its logs after each deployment.
 
 ## 📚 Further documentation
 
@@ -585,7 +597,6 @@ A successful local build does not guarantee a successful hosted deployment. Veri
 - Accessibility work is an engineering target; a full manual assistive-technology audit remains necessary.
 - LCP and INP have not been established through production field data.
 - Native dependency installation, including Argon2, must succeed in the deployment environment; local Windows checks alone do not prove Linux deployment compatibility.
-- The README does not claim a live production deployment. Confirm deployment status independently.
 
 ## 👨‍💻 Author
 
