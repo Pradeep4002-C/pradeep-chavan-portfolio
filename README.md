@@ -1,253 +1,225 @@
-# Pradeep Chavan | Developer Portfolio
+<!--
+  Pradeep Chavan — Developer Portfolio
+  Keep project claims aligned with the implementation and measured results.
+-->
+
+<h1 align="center">Pradeep Chavan · Developer Portfolio</h1>
 
 <p align="center">
-  A full-stack developer portfolio built with the MERN stack, featuring a dynamic public website and a secure private admin dashboard.
+  A full-stack developer portfolio with a dynamic public website and a private,
+  session-authenticated content management dashboard.
 </p>
 
 <p align="center">
-  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" /></a>
-  <a href="https://vite.dev/"><img src="https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" /></a>
-  <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" /></a>
-  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-22-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" /></a>
-  <a href="https://expressjs.com/"><img src="https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express" /></a>
-  <a href="https://www.mongodb.com/"><img src="https://img.shields.io/badge/MongoDB-9-47A248?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB" /></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 18"></a>
+  <a href="https://vite.dev/"><img src="https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite 6"></a>
+  <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS 4"></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-22.20.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js 22.20.0"></a>
+  <a href="https://expressjs.com/"><img src="https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express 5"></a>
+  <a href="https://www.mongodb.com/"><img src="https://img.shields.io/badge/MongoDB-Database-47A248?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB"></a>
+  <a href="https://mongoosejs.com/"><img src="https://img.shields.io/badge/Mongoose-9-880000?style=for-the-badge&logo=mongoose&logoColor=white" alt="Mongoose 9"></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Architecture-Single_Origin-blue?style=flat-square" alt="Single-origin architecture" />
-  <img src="https://img.shields.io/badge/Testing-318_Tests_Reported-success?style=flat-square" alt="318 tests reported" />
-  <img src="https://img.shields.io/badge/Accessibility-WCAG_2.2_AA_Target-purple?style=flat-square" alt="WCAG 2.2 AA target" />
+  <img src="https://img.shields.io/badge/Architecture-Single_Origin-2563EB?style=flat-square" alt="Single-origin architecture">
+  <img src="https://img.shields.io/badge/Tests-318_Reported-success?style=flat-square" alt="318 tests reported">
+  <img src="https://img.shields.io/badge/Accessibility-WCAG_2.2_AA_Target-7C3AED?style=flat-square" alt="WCAG 2.2 AA engineering target">
+</p>
+
+<p align="center">
+  <a href="#-overview">Overview</a> ·
+  <a href="#-features">Features</a> ·
+  <a href="#-architecture">Architecture</a> ·
+  <a href="#-getting-started">Getting Started</a> ·
+  <a href="#-testing">Testing</a> ·
+  <a href="#-deployment">Deployment</a>
 </p>
 
 ---
 
 ## ✨ Overview
 
-A personal developer portfolio designed to showcase my technical skills, projects, education, certifications, and achievements through a responsive web experience.
+This is my personal developer portfolio, built to present my projects, technical skills, education, certifications, and achievements through a responsive web experience.
 
-Built using **MongoDB, Express.js, React, and Node.js**, the application combines a public portfolio with a private content-management dashboard.
+The application has two connected interfaces:
 
-Instead of hardcoding portfolio content into the frontend, the application stores it in MongoDB and retrieves it through a REST API. An authenticated administrator can manage the content directly through the dashboard without modifying the source code.
+- **Public portfolio** — visitors can explore my work and contact me.
+- **Private admin dashboard** — I can manage portfolio content without editing frontend source files.
 
-The project also emphasizes secure authentication, server-side validation, accessibility, responsive design, automated testing, and production deployment practices.
+Portfolio content is stored in MongoDB and served through an Express REST API. The administrator dashboard uses server-side session authentication, with passwords hashed using Argon2id.
+
+The project is also an exercise in building a maintainable full-stack application: separating frontend and backend responsibilities, validating API input, protecting sessions, testing important behaviour, and preparing a single-origin production deployment.
 
 ## 🚀 Features
 
-### 🌐 Public Portfolio
-
-- Responsive, editorial-style user interface.
-- Dynamic professional profile and introduction.
-- Project listings and detailed case studies.
-- Technical skills organized into groups.
-- Education and certification sections.
-- Achievements presentation.
-- Contact form with server-side validation.
-- Accessible hash-based navigation.
-- Responsive layouts across different screen sizes.
-
-### 🔐 Admin Dashboard
-
-- Private administrator authentication.
-- Session-based authorization.
-- Dashboard overview and statistics.
-- Create, edit, and delete projects.
-- Manage profile information.
-- Manage skills and skill groups.
-- Manage education and certifications.
-- Manage achievements.
-- View and manage contact messages.
-- Dedicated project editor.
-- Interactive workflow artwork builder.
-- Live preview of project workflows.
-- Unsaved-changes protection and destructive-action confirmations.
-
-### 🛡️ Security
-
-- Argon2id password hashing.
-- MongoDB-backed session storage.
-- Zod request validation.
-- Helmet security headers.
-- Trusted-origin verification.
-- Rate limiting.
-- Secure session cookies.
-- XSS-safe React rendering.
-- Explicit public API response projections.
-- Server-side administrator authorization.
-
-### ♿ Accessibility
-
-- WCAG 2.2 AA engineering target.
-- Semantic HTML structure.
-- Keyboard-accessible interactions.
-- Visible focus indicators.
-- Accessible dialogs and drawers.
-- Form error announcements.
-- Reduced-motion support.
-- Contrast-checked design tokens.
-
-### ⚡ Performance
-
-- Optimized Vite production build.
-- Lazy-loaded administrator dashboard.
-- Fingerprinted static assets.
-- Immutable asset caching.
-- Revalidated HTML and public API responses.
-- Reduced layout shifts.
-- Responsive layouts without horizontal overflow.
-
----
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🌐 Public portfolio</h3>
+      <ul>
+        <li>Responsive, editorial-style interface</li>
+        <li>Dynamic profile and introduction</li>
+        <li>Database-driven project showcase and case studies</li>
+        <li>Grouped technical skills</li>
+        <li>Education, certifications, and achievements</li>
+        <li>Validated contact form</li>
+        <li>Accessible section navigation</li>
+      </ul>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🔐 Admin dashboard</h3>
+      <ul>
+        <li>Private administrator sign-in</li>
+        <li>MongoDB-backed sessions</li>
+        <li>Dashboard overview</li>
+        <li>Manage projects and profile</li>
+        <li>Manage skills and skill groups</li>
+        <li>Manage education and certifications</li>
+        <li>Manage achievements and messages</li>
+        <li>Dedicated project editor and workflow builder</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🛡️ Security</h3>
+      <ul>
+        <li>Argon2id password hashing</li>
+        <li>Server-side authorization</li>
+        <li>Zod request validation</li>
+        <li>Helmet security headers</li>
+        <li>Trusted-origin checks</li>
+        <li>Rate limiting and account lockout</li>
+        <li>Secure, HTTP-only session cookies</li>
+      </ul>
+    </td>
+    <td width="50%" valign="top">
+      <h3>⚡ Quality and performance</h3>
+      <ul>
+        <li>Lazy-loaded admin application bundle</li>
+        <li>Fingerprint-based asset caching</li>
+        <li>Reduced-motion support</li>
+        <li>Keyboard-friendly controls and dialogs</li>
+        <li>Responsive layout checks</li>
+        <li>Automated frontend and backend tests</li>
+        <li>Production static-file and API handling</li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 ## 🏗️ Architecture
 
-The application follows a **single-origin architecture** in production.
-
-The React frontend communicates with an Express backend, which handles authentication, validation, business logic, and MongoDB operations.
-
-### System Architecture
+The production application uses a **single-origin architecture**: Express serves the built React application and the REST API from the same web service.
 
 ```mermaid
-flowchart TD
-    U["👤 User / Administrator"]
-    B["🌐 Web Browser"]
-    R["⚛️ React Application"]
-    P["🌍 Public Portfolio"]
-    A["🔐 Admin Dashboard"]
-    API["🟢 Express REST API"]
-    AUTH["🔑 Authentication & Sessions"]
-    VAL["🛡️ Zod Validation"]
-    DB[("🍃 MongoDB Atlas")]
+flowchart TB
+    VISITOR["🌍 Visitor"] --> BROWSER["Browser"]
+    ADMIN["🔐 Administrator"] --> BROWSER
 
-    U --> B
-    B --> R
-    R --> P
-    R --> A
-    P --> API
-    A --> API
-    API --> AUTH
-    API --> VAL
-    AUTH --> DB
-    VAL --> DB
+    BROWSER --> PUBLIC["Public React application"]
+    BROWSER --> DASH["Lazy-loaded admin application"]
+
+    PUBLIC --> API["Express 5 REST API"]
+    DASH --> API
+
+    API --> MW["Security middleware<br/>Origin checks · Zod · Rate limits"]
+    MW --> AUTH["Session authentication<br/>for protected admin routes"]
+    AUTH --> MODELS["Mongoose models"]
+    MODELS --> DB[("MongoDB<br/>Content · Admin · Sessions")]
 ```
 
-### Request Lifecycle
+### Main request flows
 
-1. A visitor opens the portfolio.
-2. React requests published content through `GET /api/portfolio`.
-3. Express processes the request.
-4. Mongoose retrieves the required records from MongoDB.
-5. The backend returns the appropriate public data.
-6. React renders the portfolio.
+**Public portfolio**
 
-### Administrator Authentication Flow
+1. The browser loads the React public application.
+2. The frontend requests `GET /api/portfolio`.
+3. Express retrieves approved public fields from MongoDB through Mongoose.
+4. The API returns published portfolio content.
+5. React normalizes the response and renders the page.
 
-1. The administrator opens `/admin/login`.
-2. Credentials are submitted to the backend.
-3. The password is verified using Argon2id.
-4. A MongoDB-backed session is established.
-5. The browser receives a protected session cookie.
-6. Subsequent administrator requests are authenticated server-side.
-7. Authorized content changes are persisted in MongoDB.
+**Administrator**
 
-The administrator dashboard is lazy-loaded as a separate frontend bundle.
+1. The administrator signs in through `POST /api/auth/login`.
+2. The backend validates the request and verifies the Argon2id password hash.
+3. A server-side session is created and the session ID is rotated.
+4. The browser receives an HTTP-only session cookie.
+5. Protected API requests are independently authenticated on the server.
 
----
+The admin application is loaded separately for `/admin/*`; public visitors do not need to download the dashboard bundle.
 
-## 🎨 Project Artwork System
+### Data is authoritative
 
-Projects support fixed CSS/SVG illustrations and a data-driven workflow illustration.
+The public portfolio treats MongoDB as the source of truth for managed content. Empty or unavailable project and skill collections are not silently replaced with old bundled records. This avoids deleted or unpublished content unexpectedly reappearing.
 
-Existing artwork keys:
+## 🎨 Project workflow artwork
 
-- `hostelcare`
-- `aquapredict`
-- `expense`
+Projects can use one of the existing CSS/SVG illustrations or a data-driven workflow diagram.
 
-### Workflow Artwork Builder
+The project editor's workflow builder supports:
 
-The administrator can build project workflow diagrams through the project editor.
+- Adding, editing, removing, and reordering steps.
+- A live preview while editing.
+- Between 2 and 10 steps per workflow.
+- Controlled step types: `input`, `frontend`, `backend`, `database`, `service`, `process`, and `output`.
 
-Supported operations:
+The diagram is rendered from the workflow data saved with the project. It is not AI-generated and does not infer an architecture from a project title.
 
-- Add workflow steps.
-- Edit existing steps.
-- Remove steps.
-- Reorder steps.
-- Preview the workflow.
+## 🧰 Technology stack
 
-Each workflow supports between 2 and 10 steps.
-
-| Step Type | Description |
-|---|---|
-| `input` | Initial input or data |
-| `frontend` | Frontend processing |
-| `backend` | Backend processing |
-| `database` | Database operations |
-| `service` | External service |
-| `process` | General processing |
-| `output` | Final output |
-
-Workflow illustrations are data-driven and are not generated from project names or AI.
-
----
-
-## 🧰 Technology Stack
-
-| Layer | Technology | Purpose |
+| Layer | Technology | Role |
 |---|---|---|
-| Frontend | React 18 | Component-based interface |
-| Build Tool | Vite 6 | Development and production builds |
-| Styling | Tailwind CSS v4 | Utility-first styling |
-| Runtime | Node.js 22 | JavaScript runtime |
-| Backend | Express 5 | REST API and application server |
-| Database | MongoDB | Persistent application data |
-| ODM | Mongoose 9 | Database models and queries |
-| Sessions | MongoDB-backed sessions | Session persistence |
-| Password Hashing | Argon2id | Secure password hashing |
-| Validation | Zod | Request schema validation |
-| Testing | Node.js Test Runner | Automated tests |
-| Deployment | Render | Application hosting |
-| Database Hosting | MongoDB Atlas | Cloud database |
+| UI | React 18 | Component-based frontend |
+| Routing | React Router 7 | Admin dashboard routing |
+| Build | Vite 6 | Development server and production build |
+| Styling | Tailwind CSS 4 | Utility-first styling |
+| Runtime | Node.js | JavaScript runtime |
+| API | Express 5 | REST API and production server |
+| Database | MongoDB | Portfolio and account data |
+| ODM | Mongoose 9 | Models and database access |
+| Sessions | express-session + connect-mongo | Persistent server-side sessions |
+| Passwords | Argon2id | Password hashing and verification |
+| Validation | Zod 4 | Request validation |
+| Security | Helmet, express-rate-limit | HTTP hardening and rate limiting |
+| Tests | Node.js built-in test runner | Frontend and backend tests |
+| Hosting | Render | Single-web-service deployment |
+| Database hosting | MongoDB Atlas | Managed MongoDB deployment |
 
----
-
-## 📁 Project Structure
+## 📁 Repository structure
 
 ```text
-Portfolio/
-│
+pradeep-chavan-portfolio/
 ├── backend/
-│   ├── scripts/
+│   ├── scripts/                 # Content seeding and admin creation
 │   ├── src/
-│   │   ├── config/
-│   │   ├── middleware/
-│   │   ├── models/
-│   │   ├── routes/
-│   │   ├── scripts/
-│   │   └── validation/
+│   │   ├── config/              # Environment, database, session, auth
+│   │   ├── lib/                 # Shared helpers and utilities
+│   │   ├── middleware/          # Auth, origin, rate limit, errors
+│   │   ├── models/              # Mongoose models
+│   │   ├── routes/              # Public and admin API routes
+│   │   ├── scripts/             # Admin lockout recovery
+│   │   └── validation/          # Zod schemas
 │   ├── tests/
 │   └── package.json
-│
 ├── frontend/
-│   ├── public/
-│   │   ├── favicon
-│   │   ├── resume.pdf
-│   │   └── robots.txt
+│   ├── public/                  # Favicon, resume, robots.txt
 │   ├── src/
-│   │   ├── admin/
-│   │   ├── api/
-│   │   ├── components/
-│   │   ├── data/
-│   │   ├── sections/
+│   │   ├── admin/               # Admin pages, editor, API wrappers
+│   │   ├── api/                 # Public API clients and normalization
+│   │   ├── components/          # Shared UI and artwork
+│   │   ├── data/                # Portfolio data helpers
+│   │   ├── pages/
+│   │   ├── sections/            # Public portfolio sections
 │   │   ├── App.jsx
 │   │   └── main.jsx
 │   ├── tests/
+│   ├── docs/
 │   └── package.json
-│
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── PROJECT_GUIDE.md
 │   └── INTERVIEW_PREPARATION.md
-│
 ├── .env.example
 ├── .gitignore
 ├── .node-version
@@ -255,163 +227,133 @@ Portfolio/
 └── package.json
 ```
 
----
-
-## ⚙️ Getting Started
+## ⚙️ Getting started
 
 ### Prerequisites
 
-Install the following before running the application:
+- Node.js **20.19.0 or later**.
+- Node.js **22.20.0** is the version recorded as tested for this project.
+- npm.
+- A local MongoDB instance or a MongoDB Atlas database.
 
-- Node.js 20.19.0 or later.
-- Node.js 22.20.0 is the tested version.
-- npm with lockfile support.
-- MongoDB locally or a MongoDB Atlas cluster.
-
-Verify your installation:
+Check your installed versions:
 
 ```bash
 node --version
 npm --version
 ```
 
-### 1. Clone the Repository
+### 1. Clone the repository
 
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
-cd Portfolio
+git clone https://github.com/Pradeep4002-C/pradeep-chavan-portfolio.git
+cd pradeep-chavan-portfolio
 ```
 
-### 2. Install Dependencies
+### 2. Install dependencies
+
+Run this from the repository root:
 
 ```bash
 npm run install:all
 ```
 
-Alternatively, install packages separately:
+This installs the frontend and backend dependencies using their lockfiles.
 
-```bash
-npm --prefix frontend ci --include=dev
-npm --prefix backend ci
-```
+### 3. Configure environment variables
 
-### 3. Configure Environment Variables
+Create a local `.env` file from the example.
 
-Create your local environment file.
-
-**Windows PowerShell:**
+**Windows PowerShell**
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-**macOS / Linux:**
+**macOS / Linux**
 
 ```bash
 cp .env.example .env
 ```
 
-Configure the required variables:
+Set the values for your environment:
 
-| Variable | Description |
+| Variable | Purpose |
 |---|---|
-| `NODE_ENV` | Application environment |
-| `PORT` | Backend server port |
+| `NODE_ENV` | Runtime environment: development, production, or test |
+| `PORT` | Local API port; defaults to 4000 in the example |
+| `TRUST_PROXY` | Set true only behind the one trusted reverse proxy |
 | `MONGODB_URI` | MongoDB connection string |
-| `SESSION_SECRET` | Secret for signing administrator sessions |
-| `TRUST_PROXY` | Reverse-proxy trust configuration |
-| `CLIENT_ORIGIN` | Optional frontend origin for separate-origin deployments |
+| `SESSION_SECRET` | Secret used to sign administrator session cookies |
+| `CLIENT_ORIGIN` | Optional trusted frontend origin for separate-origin setups |
 
-Generate a secure session secret:
+Generate a strong session secret:
 
 ```bash
 node -e "console.log(require('node:crypto').randomBytes(48).toString('base64'))"
 ```
 
-Never commit `.env` or expose database credentials.
+Keep your real `.env` private. Do not commit database credentials or session secrets.
 
 ### 4. Configure MongoDB
 
-The application supports both local MongoDB and MongoDB Atlas.
-
-**Local MongoDB example:**
+For a local MongoDB instance, the example URI is:
 
 ```text
 mongodb://127.0.0.1:27017/pradeep_portfolio
 ```
 
-**MongoDB Atlas example:**
+For MongoDB Atlas, use the connection string supplied by Atlas:
 
 ```text
 mongodb+srv://<username>:<password>@<cluster-host>/<database>?retryWrites=true&w=majority
 ```
 
-Store the actual connection string in `.env`.
+Put your actual URI in `.env`. Ensure the database user and network access rules allow the application to connect.
 
-### 5. Start the Application
+### 5. Start the application
 
-Run the backend:
+Open two terminals at the repository root.
+
+**Terminal 1 — backend**
 
 ```bash
 npm run dev:server
 ```
 
-Run the frontend in a second terminal:
+**Terminal 2 — frontend**
 
 ```bash
 npm run dev:frontend
 ```
 
-Open:
+Open the Vite development URL:
 
 ```text
 http://localhost:5173
 ```
 
-The Vite development server proxies `/api` requests to the backend, normally running at:
+The Vite development server proxies `/api` requests to the Express server, which uses port `4000` by default in the example environment.
 
-```text
-http://localhost:4000
-```
+## 🌱 Initial content and administrator setup
 
----
-
-## 🌱 Database Seeding
-
-The application includes an idempotent content-seeding script.
-
-Run:
+### Seed initial portfolio content
 
 ```bash
 npm run seed:content
 ```
 
-The script:
+The content seed is designed to be idempotent: it creates initial records when their stable keys are absent and avoids overwriting content already edited through the dashboard. Review the target database before running it, especially in production.
 
-- Creates initial records when their stable keys are absent.
-- Avoids overwriting content edited through the dashboard.
-- Does not automatically delete removed records.
-- Avoids duplicate records when executed repeatedly.
+### Create the administrator
 
-The seed script manages initial profile, project, and skill-group content.
-
-Education, certifications, and achievements can be managed through the dashboard.
-
-Review existing data before running the seed script against a production database.
-
----
-
-## 👤 Administrator Setup
-
-Administrator accounts are not created automatically.
-
-Create the first administrator:
+Administrator accounts are not created automatically. Create the first account from a trusted terminal:
 
 ```bash
 npm run admin:create
 ```
 
-You can also provide the administrator's identity:
+You can supply the account identity:
 
 ```bash
 npm run admin:create -- --email <your-email> --name "<your-name>"
@@ -419,296 +361,181 @@ npm run admin:create -- --email <your-email> --name "<your-name>"
 
 The password is entered through a hidden interactive prompt and must contain at least 12 characters.
 
-After creating the administrator, open:
+Then visit:
 
 ```text
-/admin/login
+http://localhost:5173/admin/login
 ```
 
-Sign in using the configured credentials.
+### Recover an administrator lockout
 
-### Account Lockout Recovery
-
-Ten consecutive failed sign-in attempts lock an administrator account for 15 minutes.
-
-To clear a lockout from a trusted deployment terminal:
+After ten consecutive failed sign-in attempts, an account is locked for 15 minutes. From a trusted deployment terminal, an owner can clear the lockout counter:
 
 ```bash
 npm run admin:unlock -- --email <your-email>
 ```
 
-This resets the failed-attempt counter and lockout timestamp without changing the password or session data.
+This does not change the password or delete session data.
 
----
+## 🔌 API overview
 
-## 🔌 API Overview
+### Public routes
 
-The Express backend exposes public, authentication, and administrator endpoints.
-
-### Public Endpoints
-
-| Method | Endpoint | Description |
+| Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/api/health` | Service and database health |
-| GET | `/api/portfolio` | Retrieve published portfolio content |
+| GET | `/api/health` | Service and database health check |
+| GET | `/api/portfolio` | Retrieve approved public portfolio content |
 | POST | `/api/contact` | Submit a contact message |
 
-### Authentication Endpoints
+### Authentication routes
 
-| Method | Endpoint | Description |
+| Method | Endpoint | Purpose |
 |---|---|---|
-| POST | `/api/auth/login` | Administrator login |
-| GET | `/api/auth/me` | Retrieve current administrator |
-| POST | `/api/auth/logout` | End administrator session |
+| POST | `/api/auth/login` | Sign in an administrator |
+| GET | `/api/auth/me` | Get the current administrator session |
+| POST | `/api/auth/logout` | End the administrator session |
 
-### Administrator Endpoints
+### Administrator routes
 
-All administrator endpoints require authentication. State-changing requests also require trusted-origin verification.
+All routes below require an authenticated administrator. State-changing requests are also subject to trusted-origin checks.
 
-| Resource | Supported Operations |
-|---|---|
-| Overview | `GET /api/admin/overview` |
-| Projects | `GET`, `POST`, `PATCH`, `DELETE` |
-| Messages | `GET`, `PATCH`, `DELETE` |
-| Skill Groups | `GET`, `POST`, `PATCH`, `DELETE` |
-| Education | `GET`, `POST`, `PATCH`, `DELETE` |
-| Certifications | `GET`, `POST`, `PATCH`, `DELETE` |
-| Achievements | `GET`, `POST`, `PATCH`, `DELETE` |
-| Profile | `GET`, `PUT` |
+| Resource | Collection endpoint | Item endpoint |
+|---|---|---|
+| Overview | `GET /api/admin/overview` | — |
+| Projects | `GET, POST /api/admin/projects` | `GET, PATCH, DELETE /api/admin/projects/:id` |
+| Messages | `GET /api/admin/messages` | `PATCH, DELETE /api/admin/messages/:id` |
+| Skill groups | `GET, POST /api/admin/skill-groups` | `PATCH, DELETE /api/admin/skill-groups/:id` |
+| Education | `GET, POST /api/admin/education` | `PATCH, DELETE /api/admin/education/:id` |
+| Certifications | `GET, POST /api/admin/certifications` | `PATCH, DELETE /api/admin/certifications/:id` |
+| Achievements | `GET, POST /api/admin/achievements` | `PATCH, DELETE /api/admin/achievements/:id` |
+| Profile | `GET, PUT /api/admin/profile` | — |
 
-Resource-specific operations use their corresponding collection or `:id` routes.
+Unknown API paths return JSON errors rather than the frontend HTML. The production server also handles static assets and browser-side application routes.
 
-Unknown `/api/*` routes return JSON errors instead of the frontend HTML. Missing static assets also return proper 404 responses.
+## 🛡️ Security notes
 
----
+Security is enforced on the server; hiding dashboard screens in the browser is not treated as authorization.
 
-## 🛡️ Security
+- **Password storage:** administrator passwords are hashed and verified with Argon2id.
+- **Session storage:** sessions are stored in MongoDB; there is no in-memory production fallback.
+- **Session cookies:** HTTP-only, `SameSite=Lax`, and secure in production.
+- **Session lifecycle:** the session ID is regenerated after successful authentication.
+- **Authorization:** protected administrator API routes verify the session server-side.
+- **Validation:** Zod schemas validate request bodies and reject unsupported properties.
+- **Origin protection:** state-changing requests are checked against the trusted origin.
+- **HTTP headers:** Helmet supplies security headers, including Content Security Policy.
+- **Rate limiting:** login and contact endpoints have request limits.
+- **Account lockout:** repeated failed administrator logins trigger a temporary lockout.
+- **Public data:** API responses use approved public fields rather than exposing complete database documents.
+- **Rendering:** user-provided content is rendered as React text; the application avoids injecting raw HTML.
 
-Security is implemented across authentication, API validation, session management, and data access.
+The contact form also uses a honeypot and minimum form-age checks to reduce automated submissions. These controls reduce abuse; they do not guarantee that all spam will be blocked.
 
-### Authentication & Password Protection
+## ♿ Accessibility and responsive design
 
-- Argon2id password hashing.
-- Password hashes are never returned by the API.
-- Dummy verification for unknown-account login attempts.
-- Server-side authorization for administrator routes.
-- Session ID regeneration after successful login.
+Accessibility is an engineering target throughout the interface, not a claim of independently certified compliance.
 
-### Session Management
-
-- MongoDB-backed session storage.
-- `HttpOnly` session cookies.
-- `SameSite=Lax`.
-- `Secure` cookies in production.
-- Approximately eight-hour session expiration.
-- No in-memory session-store fallback.
-
-### Input Validation
-
-Zod schemas validate incoming requests and reject:
-
-- Unknown request properties.
-- Unsupported nested objects.
-- Mass-assignment fields such as `_id` and `__v`.
-- Invalid URLs.
-- Unsupported URL schemes such as `javascript:`, `data:`, and `vbscript:`.
-
-### XSS Protection
-
-Application content is rendered through React text nodes.
-
-The application source contains no:
-
-- `dangerouslySetInnerHTML`
-- `innerHTML`
-- `outerHTML`
-- `document.write`
-- `eval`
-- `new Function`
-
-Regression tests check hostile HTML payloads and ensure they remain inert text.
-
-### HTTP Security
-
-Helmet provides security headers, including:
-
-- Content Security Policy.
-- `X-Content-Type-Options: nosniff`.
-- `X-Frame-Options: SAMEORIGIN`.
-- `Referrer-Policy: no-referrer`.
-
-Additional protections include disabled `x-powered-by`, JSON-only API request handling, and a 32 KB JSON request-body limit.
-
-### Rate Limiting
-
-| Protection | Limit |
-|---|---|
-| Login attempts | 5 per IP per 15 minutes |
-| Account lockout | 10 consecutive failures for 15 minutes |
-| Contact submissions | 5 per IP per hour |
-
-The contact form also uses a hidden honeypot and minimum form age. Spam submissions receive the same response as accepted submissions and are not stored.
-
----
-
-## ♿ Accessibility
-
-The application follows WCAG 2.2 AA as an engineering target.
-
-Implemented accessibility considerations include:
-
-- Semantic HTML landmarks.
-- Logical heading structure.
-- Keyboard-accessible controls.
-- Visible focus indicators.
+- Semantic landmarks and logical heading structure.
+- Keyboard-accessible controls and visible focus indicators.
 - Skip navigation.
-- Accessible dialogs and drawers.
-- Managed focus and focus restoration.
-- Escape-key dialog dismissal.
-- Accessible form validation.
-- Screen-reader status announcements.
+- Accessible dialogs and drawers, including focus handling.
+- Form error and status announcements.
 - Reduced-motion support.
-- Contrast checks for normal and large text.
-- Minimum 48 × 48 pixel targets for navigation and primary actions.
+- Contrast-checked design tokens.
+- Responsive layouts checked at narrow and wide viewport sizes.
 
-Automated checks do not replace a complete manual screen-reader or assistive-technology audit. WCAG compliance should not be claimed without appropriate verification.
+The project documentation records a **WCAG 2.2 AA target**. Automated tests and contrast checks do not replace a complete manual audit with screen readers and other assistive technologies.
 
----
+## ⚡ Performance and layout verification
 
-## ⚡ Performance
+The production frontend uses Vite's build pipeline, lazy-loads the admin application, and uses fingerprinted assets for long-lived immutable caching. HTML and public API responses are revalidated; authentication and admin responses use non-cacheable policies.
 
-The production frontend uses Vite's optimized build pipeline.
+### Reported local CLS measurements
 
-Performance-related implementation includes:
-
-- Lazy loading of the administrator dashboard.
-- Fingerprinted static assets.
-- One-year immutable caching for fingerprinted assets.
-- HTML revalidation.
-- Public API response revalidation.
-- `no-store` caching for authentication and administrator responses.
-- Responsive layouts designed to avoid horizontal overflow.
-
-### Cumulative Layout Shift
-
-Reported Chromium measurements:
-
-| Viewport | Measured CLS | Target |
+| Viewport | Reported CLS | Reference target |
 |---|---:|---:|
 | Mobile — 375px | 0.000147 | < 0.05 |
 | Desktop — 1440px | 0.000100 | < 0.05 |
 
-### Responsive Verification
+The project documentation also records no horizontal overflow at 280px, 375px, 1440px, and 2560px viewports.
 
-| Viewport | Result |
-|---|---|
-| 280px | No horizontal overflow |
-| 375px | No horizontal overflow |
-| 1440px | No horizontal overflow |
-| 2560px | No horizontal overflow |
-
-LCP and INP still require validation through Lighthouse or real-user field data after deployment.
-
-These figures represent reported local measurements, not live production measurements.
-
----
+These are **reported local measurements**, not live production field data. Largest Contentful Paint (LCP) and Interaction to Next Paint (INP) still need validation after deployment using Lighthouse or real-user monitoring.
 
 ## 🧪 Testing
 
 The project uses Node.js's built-in test runner.
 
-Run the complete test suite:
+Run all suites from the repository root:
 
 ```bash
 npm test
 ```
 
-Run individual suites:
+Run suites individually:
 
 ```bash
 npm run test:server
 npm run test:frontend
 ```
 
-### Reported Test Results
+### Previously reported results
 
-| Test Suite | Tests | Result |
-|---|---:|---|
-| Frontend | 196 | Passed |
-| Backend | 122 | Passed |
-| **Total** | **318** | **318/318 reported passed** |
+| Suite | Reported tests |
+|---|---:|
+| Frontend | 196 |
+| Backend | 122 |
+| **Total** | **318** |
 
-The frontend suite uses jsdom and Vite's SSR module loader to test component markup, focus behavior, and API-client contracts.
+The **318-test figure is a previously reported result** and should be treated as a checkpoint, not a guarantee of the current test count. Run `npm test` to verify the current repository state.
 
-The backend suite includes API, authentication, validation, logger, and production-serving checks.
+Backend integration tests use isolated test databases. Test database names must end in `_test`; the test suite is designed to refuse writes to the real `pradeep_portfolio` database. Never point test runs at production data.
 
-Backend integration tests require MongoDB and use isolated test databases. Test database names must end in `_test`.
+### QA review areas
 
-The test suites refuse to run against the real `pradeep_portfolio` database.
+The project's documented QA process covers:
 
-**Never use the production database for test writes.**
+1. Static integrity.
+2. Public portfolio experience.
+3. Admin authentication.
+4. Content administration.
+5. Production serving and SEO.
+6. Resilience and error states.
+7. Accessibility.
+8. Data normalization and URL safety.
+9. Security and release verification.
 
-### QA Methodology
-
-The application was reviewed through nine QA gates:
-
-| Gate | Focus |
-|---|---|
-| 1 | Static integrity |
-| 2 | Public experience |
-| 3 | Admin authentication |
-| 4 | Content administration |
-| 5 | Production serving and SEO |
-| 6 | Resilience |
-| 7 | Accessibility |
-| 8 | Data normalization and URL safety |
-| 9 | Security and release verification |
-
-A final UI-polish regression pass additionally covers navigation indicators, focus treatment, contact interactions, reduced-motion card behavior, and the editorial background mesh.
-
----
+A separate UI-polish regression pass covers navigation indicators, focus treatment, contact interactions, reduced-motion behaviour, and visual styling.
 
 ## ☁️ Deployment
 
-The application is designed for deployment on Render with MongoDB Atlas.
-
-### Deployment Architecture
+The repository includes a Render Blueprint at `render.yaml`. It describes one Node web service that builds the frontend and starts Express; it is not a separate frontend and backend deployment.
 
 ```mermaid
-flowchart TD
-    DEV["💻 Local Development"]
-    GIT["🐙 GitHub Repository"]
-    RENDER["☁️ Render"]
-    BUILD["⚛️ React Production Build"]
-    SERVER["🟢 Express Server"]
-    ATLAS[("🍃 MongoDB Atlas")]
-    USER["🌍 Live Application"]
-
-    DEV --> GIT
-    GIT --> RENDER
-    RENDER --> BUILD
-    RENDER --> SERVER
-    BUILD --> SERVER
-    SERVER <--> ATLAS
-    SERVER --> USER
+flowchart LR
+    REPO["GitHub repository"] --> RENDER["Render Blueprint"]
+    RENDER --> BUILD["Install + Vite build"]
+    BUILD --> SERVER["Express web service"]
+    SERVER <--> DB[("MongoDB Atlas")]
+    VISITOR["Browser"] --> SERVER
 ```
 
-### Deployment Steps
+### Render configuration
 
-1. Push the project repository to GitHub.
-2. Create a MongoDB Atlas cluster.
-3. Configure the database user and network access.
-4. Connect the GitHub repository to Render.
-5. Configure the service using `render.yaml`.
-6. Add `MONGODB_URI` as a secret environment variable.
-7. Configure or generate a strong `SESSION_SECRET`.
-8. Configure `TRUST_PROXY` for the trusted Render proxy.
-9. Allow Render to install dependencies and build the frontend.
-10. Verify the deployment through the health endpoint.
-11. Seed production content if required.
-12. Create the production administrator.
+The checked-in Blueprint configures:
 
-### Production Build
+- Node web service named `pradeep-portfolio`.
+- Free plan.
+- Build command: `npm run install:all && npm run build:frontend`.
+- Start command: `npm start`.
+- Health check: `/api/health`.
+- `NODE_ENV=production`.
+- `TRUST_PROXY=true` for the configured single trusted Render proxy.
+- `MONGODB_URI` supplied privately in the Render dashboard.
+- `SESSION_SECRET` generated by Render.
+
+Render supplies the `PORT` environment variable automatically. Do not commit real secrets to `render.yaml`, the README, or source control.
+
+### Manual production commands
 
 Build the frontend:
 
@@ -716,79 +543,60 @@ Build the frontend:
 npm run build:frontend
 ```
 
-Start the application:
+Start the production server:
 
 ```bash
 npm start
 ```
 
-Express serves the API and built frontend from the same origin.
+Express serves the built frontend and API from the same origin. The production server expects the frontend build to exist.
 
-The production server refuses to start without a frontend build.
+### Deployment checklist
 
-Render supplies the `PORT` environment variable.
+1. Create a MongoDB Atlas cluster and database user.
+2. Configure Atlas network access for the hosting environment.
+3. Connect this GitHub repository to Render using the Blueprint workflow.
+4. Supply `MONGODB_URI` securely and confirm `SESSION_SECRET` is generated.
+5. Deploy and inspect the build and runtime logs.
+6. Check `/api/health`.
+7. Open the public site and `/admin/login`.
+8. Seed initial content if needed and create the administrator using the trusted deployment shell.
+9. Test sign-in, content editing, contact submission, page refresh, and mobile layouts.
 
-### Deployment Verification
+A successful local build does not guarantee a successful hosted deployment. Verify the live service and its logs after each deployment.
 
-After deployment, verify:
+## 📚 Further documentation
 
-```text
-/api/health
-```
-
-Also check:
-
-```text
-/
-/admin/login
-```
-
-A successful local build does not guarantee a successful remote deployment. Always inspect deployment logs and verify the live application.
-
----
-
-## 📚 Documentation
-
-Additional project documentation:
-
-| Document | Description |
+| Document | What it covers |
 |---|---|
-| `docs/PROJECT_GUIDE.md` | Owner workflow, editor, seeding, and troubleshooting |
-| `docs/ARCHITECTURE.md` | Request flow, authentication, contact, and deployment |
-| `docs/INTERVIEW_PREPARATION.md` | Technical explanations and interview preparation |
-| `frontend/docs/structure-guide.md` | Frontend structure and component responsibilities |
-| `frontend/docs/design-notes.md` | Visual and interaction decisions |
-| `.env.example` | Environment configuration reference |
-| `render.yaml` | Render deployment configuration |
+| [Project guide](docs/PROJECT_GUIDE.md) | Owner workflow, dashboard usage, seeding, and troubleshooting |
+| [Architecture](docs/ARCHITECTURE.md) | Request paths, authentication, data flow, and production serving |
+| [Interview preparation](docs/INTERVIEW_PREPARATION.md) | Project walkthrough and implementation decisions |
+| [Frontend structure guide](frontend/docs/structure-guide.md) | Frontend folders and component responsibilities |
+| [Frontend design notes](frontend/docs/design-notes.md) | Visual direction and interaction decisions |
+| [Environment example](.env.example) | Environment variable reference |
+| [Render Blueprint](render.yaml) | Single-service deployment configuration |
 
----
-
-## ⚠️ Known Limitations
+## ⚠️ Known limitations
 
 - MongoDB is required for portfolio content and administrator authentication.
-- The administrator area is designed as a single-owner tool.
-- Public administrator registration is not supported.
-- A password-reset flow is not implemented.
-- A role hierarchy is not implemented.
-- Automated accessibility checks do not replace manual assistive-technology testing.
-- Linux native module builds are not verified by local Windows checks; Argon2 must install successfully in the deployment environment.
-- LCP and INP require further validation using Lighthouse or real-user data.
-- Live deployment status must be verified independently.
-
----
+- The admin area is designed as a single-owner tool; public registration is not supported.
+- A password-reset flow and role hierarchy are not implemented.
+- Accessibility work is an engineering target; a full manual assistive-technology audit remains necessary.
+- LCP and INP have not been established through production field data.
+- Native dependency installation, including Argon2, must succeed in the deployment environment; local Windows checks alone do not prove Linux deployment compatibility.
+- The README does not claim a live production deployment. Confirm deployment status independently.
 
 ## 👨‍💻 Author
 
-**Pradeep Chavan**
+**Pradeep Chavan**  
+Computer Science Engineering Student · Full-Stack Developer
 
-Full-Stack Development | Problem Solving | Software Engineering
-
-This project reflects my work in frontend development, backend architecture, database integration, authentication, security, testing, and deployment.
+Interested in full-stack development, problem solving, and building practical software.
 
 ---
 
 <p align="center">
-  <strong>Built with curiosity, consistency, and a passion for learning.</strong>
-  <br />
-  ⭐ Thanks for exploring my project!
+  <strong>Built with curiosity, consistency, and a passion for learning.</strong><br>
+  Thanks for taking the time to explore my work! ✨
 </p>
